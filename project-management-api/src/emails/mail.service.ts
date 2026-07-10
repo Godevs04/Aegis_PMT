@@ -23,7 +23,7 @@ interface SendEmailArgs {
  */
 export const sendEmail = async ({ to, subject, text, html }: SendEmailArgs): Promise<void> => {
   try {
-    const from = process.env.EMAIL_FROM || 'no-reply@aegis.com';
+    const from = process.env.SMTP_FROM || process.env.EMAIL_FROM || 'no-reply@aegis.com';
 
     // If SMTP credentials are dummy/missing, log instead of throwing error to prevent blockages
     if (!process.env.SMTP_USER || process.env.SMTP_USER.includes('your_email')) {

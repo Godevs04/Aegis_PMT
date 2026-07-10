@@ -9,6 +9,7 @@ import sendResponse from './shared/utils/response';
 
 import authRoutes from './modules/auth/auth.routes';
 import userRoutes from './modules/users/user.routes';
+import workspaceRoutes from './modules/workspaces/workspace.routes';
 
 const app: Application = express();
 
@@ -60,6 +61,7 @@ app.use('/api', limiter);
 // Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
+app.use('/api/workspaces', workspaceRoutes);
 
 // Health Check
 app.get('/health', (_req: Request, res: Response) => {
