@@ -22,5 +22,6 @@ router.post(
   controller.inviteMember
 );
 router.post('/accept-invite', validate(acceptInvitationSchema), controller.acceptInvitation);
+router.get('/:workspaceId/members', controller.getWorkspaceMembers);
 
 export default router;

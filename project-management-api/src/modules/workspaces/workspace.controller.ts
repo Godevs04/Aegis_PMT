@@ -116,6 +116,31 @@ export class WorkspaceController {
       next(error);
     }
   }
+
+  /**
+   * Get workspace members list
+   */
+  async getWorkspaceMembers(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const user = req.user;
+      if (!user) {
+        throw new AppError('Authentication credentials not found.', 401);
+      }
+
+      const { workspaceId } = req.params;
+      const members = await workspaceService.getWorkspaceMembers(workspaceId, user.id);
+
+      sendResponse({
+        res,
+        statusCode: 200,
+        success: true,
+        message: 'Workspace members retrieved successfully.',
+        data: members,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
 }
 
 export default WorkspaceController;

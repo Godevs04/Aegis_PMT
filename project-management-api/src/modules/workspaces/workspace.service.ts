@@ -1,7 +1,7 @@
 import crypto from 'crypto';
 import WorkspaceRepository from './workspace.repository';
 import AppError from '../../shared/utils/appError';
-import { IWorkspace } from './workspace.model';
+import { IWorkspace, Workspace } from './workspace.model';
 import { IInvitation } from './invitation.model';
 import { UserRole } from '../../config/roles';
 import { sendEmail } from '../../emails/mail.service';
@@ -183,6 +183,27 @@ export class WorkspaceService {
     });
 
     return workspace;
+  }
+
+  /**
+   * Get workspace members list
+   */
+  async getWorkspaceMembers(workspaceId: string, userId: string): Promise<any[]> {
+    const workspace = await this.repository.findWorkspaceById(workspaceId);
+    if (!workspace) {
+      throw new AppError('Workspace not found.', 404);
+    }
+
+    const isMember = workspace.members.some((m) => m.userId.toString() === userId);
+    if (!isMember) {
+      throw new AppError('Access denied. You are not a member of this workspace.', 403);
+    }
+
+    // Populate user profile info for members
+    const populatedWorkspace = await Workspace.findById(workspaceId)
+      .populate('members.userId', 'name email avatarUrl');
+
+    return populatedWorkspace?.members || [];
   }
 }
 

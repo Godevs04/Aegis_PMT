@@ -29,6 +29,8 @@ import { useTasksQuery, useUpdateTaskMutation } from '@/hooks/use-tasks';
 import CreateTaskModal from '@/components/task/create-task-modal';
 import NotificationBell from '@/components/notification/notification-bell';
 import { useWorkspaceActivitiesQuery } from '@/hooks/use-activities';
+import { TaskDetailModal } from '@/components/task/task-detail-modal';
+import { Task } from '@/services/task-service';
 
 export default function Home() {
   const router = useRouter();
@@ -43,6 +45,8 @@ export default function Home() {
   const updateTaskMutation = useUpdateTaskMutation();
   const [isTaskModalOpen, setIsTaskModalOpen] = useState(false);
   const { data: activities, isLoading: isLoadingActivities } = useWorkspaceActivitiesQuery(currentWorkspaceId);
+  const [selectedTask, setSelectedTask] = useState<Task | null>(null);
+  const [isTaskDetailModalOpen, setIsTaskDetailModalOpen] = useState(false);
 
   useEffect(() => {
     setMounted(true);
@@ -342,6 +346,10 @@ export default function Home() {
                     tasks.map((task) => (
                       <div
                         key={task._id}
+                        onClick={() => {
+                          setSelectedTask(task);
+                          setIsTaskDetailModalOpen(true);
+                        }}
                         className="p-4 border border-border/60 bg-zinc-900/40 rounded-lg flex justify-between items-center hover:border-primary/40 transition-colors cursor-pointer"
                       >
                         <div className="flex items-center space-x-3">
@@ -449,6 +457,16 @@ export default function Home() {
       <CreateTaskModal
         isOpen={isTaskModalOpen}
         onClose={() => setIsTaskModalOpen(false)}
+      />
+
+      <TaskDetailModal
+        isOpen={isTaskDetailModalOpen}
+        onClose={() => {
+          setIsTaskDetailModalOpen(false);
+          setSelectedTask(null);
+        }}
+        task={tasks?.find((t) => t._id === selectedTask?._id) || null}
+        workspaceId={currentWorkspaceId}
       />
     </div>
   );

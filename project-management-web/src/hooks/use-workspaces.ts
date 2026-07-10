@@ -32,3 +32,16 @@ export function useCreateWorkspaceMutation() {
     },
   });
 }
+
+export const WORKSPACE_MEMBERS_QUERY_KEY = 'workspace-members';
+
+/**
+ * Hook to retrieve workspace members
+ */
+export function useWorkspaceMembersQuery(workspaceId: string | null) {
+  return useQuery({
+    queryKey: [WORKSPACE_MEMBERS_QUERY_KEY, workspaceId],
+    queryFn: () => workspaceService.getWorkspaceMembers(workspaceId || ''),
+    enabled: !!workspaceId,
+  });
+}

@@ -1,7 +1,12 @@
 import apiClient from './api-client';
 
 export interface WorkspaceMember {
-  userId: string;
+  userId: {
+    _id: string;
+    name: string;
+    email: string;
+    avatarUrl?: string;
+  };
   role: string;
   joinedAt: string;
 }
@@ -46,6 +51,14 @@ export const workspaceService = {
    */
   async acceptInvitation(token: string): Promise<Workspace> {
     const response = await apiClient.post('/workspaces/accept-invite', { token });
+    return response.data.data;
+  },
+
+  /**
+   * Fetch workspace members
+   */
+  async getWorkspaceMembers(workspaceId: string): Promise<WorkspaceMember[]> {
+    const response = await apiClient.get(`/workspaces/${workspaceId}/members`);
     return response.data.data;
   },
 };
