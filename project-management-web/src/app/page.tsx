@@ -15,14 +15,20 @@ import {
   TrendingUp,
   Clock,
   CheckCircle,
+  Loader2,
 } from 'lucide-react';
 import { apiClient } from '@/services/api-client';
 import { Button } from '@/components/ui/button';
+import WorkspaceSwitcher from '@/components/workspace/workspace-switcher';
+import { useWorkspacesQuery } from '@/hooks/use-workspaces';
+import CreateWorkspaceModal from '@/components/workspace/create-workspace-modal';
 
 export default function Home() {
   const router = useRouter();
   const { user, isAuthenticated, clearAuth } = useAuthStore();
   const [mounted, setMounted] = useState(false);
+  const { data: workspaces, isLoading: isLoadingWorkspaces } = useWorkspacesQuery();
+  const [isWorkspaceModalOpen, setIsWorkspaceModalOpen] = useState(false);
 
   useEffect(() => {
     setMounted(true);
@@ -110,11 +116,15 @@ export default function Home() {
     <div className="flex min-h-screen bg-zinc-950 text-white font-sans">
       {/* Sidebar */}
       <aside className="w-64 border-r border-border bg-zinc-900/40 backdrop-blur-sm flex flex-col">
-        <div className="flex items-center space-x-2 px-6 py-5 border-b border-border">
-          <div className="h-8 w-8 rounded-lg bg-primary flex items-center justify-center text-white font-bold text-lg">
+        <div className="flex items-center space-x-2 px-6 py-4 border-b border-border">
+          <div className="h-7 w-7 rounded-lg bg-primary flex items-center justify-center text-white font-bold text-sm">
             A
           </div>
-          <span className="text-lg font-bold tracking-tight">Aegis</span>
+          <span className="text-sm font-bold tracking-tight">Aegis</span>
+        </div>
+
+        <div className="px-4 py-3 border-b border-border">
+          <WorkspaceSwitcher />
         </div>
 
         {/* Nav links */}
@@ -194,93 +204,116 @@ export default function Home() {
         </header>
 
         {/* Dashboard Shell Content */}
-        <main className="flex-1 overflow-y-auto p-8 space-y-6">
-          <div className="flex justify-between items-center">
-            <div>
-              <h1 className="text-2xl font-bold tracking-tight text-white">
-                Welcome back, {user?.name}
-              </h1>
-              <p className="text-xs text-muted-foreground mt-0.5">
-                Here is a summary of your workspace activities today.
+        {isLoadingWorkspaces ? (
+          <main className="flex-1 overflow-y-auto p-8 flex flex-col items-center justify-center bg-zinc-950">
+            <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          </main>
+        ) : !workspaces || workspaces.length === 0 ? (
+          <main className="flex-1 overflow-y-auto p-8 flex flex-col items-center justify-center text-center space-y-4 bg-zinc-950">
+            <div className="max-w-md p-8 border border-border bg-card/20 rounded-xl space-y-4">
+              <h2 className="text-xl font-bold text-white">Welcome to Aegis</h2>
+              <p className="text-xs text-muted-foreground leading-6">
+                You do not have any workspaces yet. Workspaces let you organize your projects, tasks, and team members in one place.
               </p>
+              <Button onClick={() => setIsWorkspaceModalOpen(true)} className="shadow-lg shadow-primary/10">
+                <Plus className="h-4 w-4 mr-1.5" /> Create Your First Workspace
+              </Button>
             </div>
-            <Button size="sm" className="shadow-lg shadow-primary/10">
-              <Plus className="h-4 w-4 mr-1.5" /> New Project
-            </Button>
-          </div>
-
-          {/* Metric Dashboard Summary Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div className="p-5 border border-border bg-card/40 rounded-xl flex items-center justify-between">
-              <div className="space-y-1.5">
-                <span className="text-xs text-muted-foreground font-medium">
-                  Tasks Assigned
-                </span>
-                <h3 className="text-2xl font-bold">12</h3>
+          </main>
+        ) : (
+          <main className="flex-1 overflow-y-auto p-8 space-y-6">
+            <div className="flex justify-between items-center">
+              <div>
+                <h1 className="text-2xl font-bold tracking-tight text-white">
+                  Welcome back, {user?.name}
+                </h1>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Here is a summary of your workspace activities today.
+                </p>
               </div>
-              <div className="h-10 w-10 bg-primary/10 rounded-lg flex items-center justify-center">
-                <TrendingUp className="h-5 w-5 text-primary" />
-              </div>
-            </div>
-
-            <div className="p-5 border border-border bg-card/40 rounded-xl flex items-center justify-between">
-              <div className="space-y-1.5">
-                <span className="text-xs text-muted-foreground font-medium">
-                  In Progress
-                </span>
-                <h3 className="text-2xl font-bold">4</h3>
-              </div>
-              <div className="h-10 w-10 bg-blue-500/10 rounded-lg flex items-center justify-center">
-                <Clock className="h-5 w-5 text-blue-400" />
-              </div>
+              <Button size="sm" className="shadow-lg shadow-primary/10">
+                <Plus className="h-4 w-4 mr-1.5" /> New Project
+              </Button>
             </div>
 
-            <div className="p-5 border border-border bg-card/40 rounded-xl flex items-center justify-between">
-              <div className="space-y-1.5">
-                <span className="text-xs text-muted-foreground font-medium">
-                  Completed Tasks
-                </span>
-                <h3 className="text-2xl font-bold">8</h3>
+            {/* Metric Dashboard Summary Cards */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <div className="p-5 border border-border bg-card/40 rounded-xl flex items-center justify-between">
+                <div className="space-y-1.5">
+                  <span className="text-xs text-muted-foreground font-medium">
+                    Tasks Assigned
+                  </span>
+                  <h3 className="text-2xl font-bold">12</h3>
+                </div>
+                <div className="h-10 w-10 bg-primary/10 rounded-lg flex items-center justify-center">
+                  <TrendingUp className="h-5 w-5 text-primary" />
+                </div>
               </div>
-              <div className="h-10 w-10 bg-emerald-500/10 rounded-lg flex items-center justify-center">
-                <CheckCircle className="h-5 w-5 text-emerald-400" />
+
+              <div className="p-5 border border-border bg-card/40 rounded-xl flex items-center justify-between">
+                <div className="space-y-1.5">
+                  <span className="text-xs text-muted-foreground font-medium">
+                    In Progress
+                  </span>
+                  <h3 className="text-2xl font-bold">4</h3>
+                </div>
+                <div className="h-10 w-10 bg-blue-500/10 rounded-lg flex items-center justify-center">
+                  <Clock className="h-5 w-5 text-blue-400" />
+                </div>
+              </div>
+
+              <div className="p-5 border border-border bg-card/40 rounded-xl flex items-center justify-between">
+                <div className="space-y-1.5">
+                  <span className="text-xs text-muted-foreground font-medium">
+                    Completed Tasks
+                  </span>
+                  <h3 className="text-2xl font-bold">8</h3>
+                </div>
+                <div className="h-10 w-10 bg-emerald-500/10 rounded-lg flex items-center justify-center">
+                  <CheckCircle className="h-5 w-5 text-emerald-400" />
+                </div>
               </div>
             </div>
-          </div>
 
-          {/* Today's Tasks Section */}
-          <div className="p-6 border border-border bg-card/30 rounded-xl space-y-4">
-            <h2 className="text-sm font-semibold tracking-tight text-white">
-              Assigned Tasks
-            </h2>
-            <div className="space-y-2">
-              <div className="p-4 border border-border/60 bg-zinc-900/40 rounded-lg flex justify-between items-center hover:border-primary/40 transition-colors cursor-pointer">
-                <div className="flex items-center space-x-3">
-                  <div className="h-2 w-2 rounded-full bg-red-400" />
-                  <span className="text-xs font-semibold text-white">
-                    Setup MongoDB schema indexes
+            {/* Today's Tasks Section */}
+            <div className="p-6 border border-border bg-card/30 rounded-xl space-y-4">
+              <h2 className="text-sm font-semibold tracking-tight text-white">
+                Assigned Tasks
+              </h2>
+              <div className="space-y-2">
+                <div className="p-4 border border-border/60 bg-zinc-900/40 rounded-lg flex justify-between items-center hover:border-primary/40 transition-colors cursor-pointer">
+                  <div className="flex items-center space-x-3">
+                    <div className="h-2 w-2 rounded-full bg-red-400" />
+                    <span className="text-xs font-semibold text-white">
+                      Setup MongoDB schema indexes
+                    </span>
+                  </div>
+                  <span className="text-[10px] bg-red-500/10 border border-red-500/20 text-red-400 px-2 py-0.5 rounded-full font-medium">
+                    High
                   </span>
                 </div>
-                <span className="text-[10px] bg-red-500/10 border border-red-500/20 text-red-400 px-2 py-0.5 rounded-full font-medium">
-                  High
-                </span>
-              </div>
 
-              <div className="p-4 border border-border/60 bg-zinc-900/40 rounded-lg flex justify-between items-center hover:border-primary/40 transition-colors cursor-pointer">
-                <div className="flex items-center space-x-3">
-                  <div className="h-2 w-2 rounded-full bg-yellow-400" />
-                  <span className="text-xs font-semibold text-white">
-                    Configure SMTP authentication variables
+                <div className="p-4 border border-border/60 bg-zinc-900/40 rounded-lg flex justify-between items-center hover:border-primary/40 transition-colors cursor-pointer">
+                  <div className="flex items-center space-x-3">
+                    <div className="h-2 w-2 rounded-full bg-yellow-400" />
+                    <span className="text-xs font-semibold text-white">
+                      Configure SMTP authentication variables
+                    </span>
+                  </div>
+                  <span className="text-[10px] bg-yellow-500/10 border border-yellow-500/20 text-yellow-400 px-2 py-0.5 rounded-full font-medium">
+                    Medium
                   </span>
                 </div>
-                <span className="text-[10px] bg-yellow-500/10 border border-yellow-500/20 text-yellow-400 px-2 py-0.5 rounded-full font-medium">
-                  Medium
-                </span>
               </div>
             </div>
-          </div>
-        </main>
+          </main>
+        )}
       </div>
+
+      <CreateWorkspaceModal
+        isOpen={isWorkspaceModalOpen}
+        onClose={() => setIsWorkspaceModalOpen(false)}
+      />
     </div>
   );
 }
