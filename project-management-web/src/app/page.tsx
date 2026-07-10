@@ -22,6 +22,9 @@ import { Button } from '@/components/ui/button';
 import WorkspaceSwitcher from '@/components/workspace/workspace-switcher';
 import { useWorkspacesQuery } from '@/hooks/use-workspaces';
 import CreateWorkspaceModal from '@/components/workspace/create-workspace-modal';
+import { useProjectsQuery } from '@/hooks/use-projects';
+import CreateProjectModal from '@/components/project/create-project-modal';
+import { useWorkspaceStore } from '@/store/workspace-store';
 
 export default function Home() {
   const router = useRouter();
@@ -29,6 +32,9 @@ export default function Home() {
   const [mounted, setMounted] = useState(false);
   const { data: workspaces, isLoading: isLoadingWorkspaces } = useWorkspacesQuery();
   const [isWorkspaceModalOpen, setIsWorkspaceModalOpen] = useState(false);
+  const { currentWorkspaceId } = useWorkspaceStore();
+  const { data: projects, isLoading: isLoadingProjects } = useProjectsQuery(currentWorkspaceId);
+  const [isProjectModalOpen, setIsProjectModalOpen] = useState(false);
 
   useEffect(() => {
     setMounted(true);
@@ -136,13 +142,42 @@ export default function Home() {
             <LayoutDashboard className="h-4 w-4 text-primary" />
             <span>Dashboard</span>
           </a>
-          <a
-            href="#"
-            className="flex items-center space-x-3 px-3 py-2 rounded-md text-muted-foreground hover:bg-zinc-800/30 hover:text-white text-sm transition-colors"
-          >
-            <FolderKanban className="h-4 w-4" />
-            <span>Projects</span>
-          </a>
+          <div className="space-y-1">
+            <div className="flex items-center justify-between px-3 py-2 text-muted-foreground text-sm font-medium">
+              <div className="flex items-center space-x-3">
+                <FolderKanban className="h-4 w-4" />
+                <span>Projects</span>
+              </div>
+              {currentWorkspaceId && (
+                <button
+                  onClick={() => setIsProjectModalOpen(true)}
+                  className="p-0.5 rounded hover:bg-zinc-800 text-muted-foreground hover:text-white transition-colors"
+                  title="Create Project"
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                </button>
+              )}
+            </div>
+            
+            {/* Dynamic Project List */}
+            <div className="pl-7 pr-2 space-y-0.5 max-h-40 overflow-y-auto">
+              {isLoadingProjects ? (
+                <span className="text-[10px] text-muted-foreground block py-1">Loading...</span>
+              ) : !projects || projects.length === 0 ? (
+                <span className="text-[10px] text-muted-foreground block py-1">No projects</span>
+              ) : (
+                projects.map((project) => (
+                  <button
+                    key={project._id}
+                    className="flex items-center space-x-2 w-full px-2 py-1 rounded text-xs text-muted-foreground hover:bg-zinc-800/40 hover:text-white transition-colors text-left truncate"
+                  >
+                    <span className="h-1.5 w-1.5 rounded-full bg-primary/60 shrink-0" />
+                    <span className="truncate">{project.name}</span>
+                  </button>
+                ))
+              )}
+            </div>
+          </div>
           <a
             href="#"
             className="flex items-center space-x-3 px-3 py-2 rounded-md text-muted-foreground hover:bg-zinc-800/30 hover:text-white text-sm transition-colors"
@@ -231,7 +266,7 @@ export default function Home() {
                   Here is a summary of your workspace activities today.
                 </p>
               </div>
-              <Button size="sm" className="shadow-lg shadow-primary/10">
+              <Button size="sm" onClick={() => setIsProjectModalOpen(true)} className="shadow-lg shadow-primary/10">
                 <Plus className="h-4 w-4 mr-1.5" /> New Project
               </Button>
             </div>
@@ -313,6 +348,11 @@ export default function Home() {
       <CreateWorkspaceModal
         isOpen={isWorkspaceModalOpen}
         onClose={() => setIsWorkspaceModalOpen(false)}
+      />
+
+      <CreateProjectModal
+        isOpen={isProjectModalOpen}
+        onClose={() => setIsProjectModalOpen(false)}
       />
     </div>
   );
