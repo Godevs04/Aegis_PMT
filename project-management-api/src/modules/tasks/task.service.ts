@@ -2,12 +2,15 @@ import TaskRepository from './task.repository';
 import Workspace from '../workspaces/workspace.model';
 import AppError from '../../shared/utils/appError';
 import { ITask } from './task.model';
+import ActivityService from '../activities/activity.service';
 
 export class TaskService {
   private repository: TaskRepository;
+  private activityService: ActivityService;
 
   constructor() {
     this.repository = new TaskRepository();
+    this.activityService = new ActivityService();
   }
 
   /**
@@ -34,10 +37,32 @@ export class TaskService {
   ): Promise<ITask> {
     await this.checkWorkspaceMembership(taskData.workspaceId, userId);
 
-    return this.repository.createTask({
+    const task = await this.repository.createTask({
       ...taskData,
       createdBy: userId as any,
     });
+
+    await this.activityService.logActivity({
+      workspaceId: taskData.workspaceId,
+      projectId: task.projectId as any,
+      taskId: task.id,
+      userId: userId as any,
+      action: 'TASK_CREATED',
+      details: { title: task.title },
+    });
+
+    if (task.assigneeId) {
+      await this.activityService.logActivity({
+        workspaceId: taskData.workspaceId,
+        projectId: task.projectId as any,
+        taskId: task.id,
+        userId: userId as any,
+        action: 'TASK_ASSIGNED',
+        details: { title: task.title, assigneeId: task.assigneeId },
+      });
+    }
+
+    return task;
   }
 
   /**
@@ -76,6 +101,9 @@ export class TaskService {
       'checklist',
     ];
 
+    const prevStatus = task.status;
+    const prevAssigneeId = task.assigneeId?.toString();
+
     allowedKeys.forEach((key) => {
       if (updateData[key] !== undefined) {
         (task as any)[key] = updateData[key];
@@ -83,8 +111,31 @@ export class TaskService {
     });
 
     task.updatedBy = userId as any;
+    const updatedTask = await this.repository.saveTask(task);
 
-    return this.repository.saveTask(task);
+    if (updateData.status && updateData.status !== prevStatus) {
+      await this.activityService.logActivity({
+        workspaceId: updatedTask.workspaceId as any,
+        projectId: updatedTask.projectId as any,
+        taskId: updatedTask.id as any,
+        userId: userId as any,
+        action: 'TASK_STATUS_UPDATED',
+        details: { title: updatedTask.title, prevStatus, nextStatus: updateData.status },
+      });
+    }
+
+    if (updateData.assigneeId !== undefined && updateData.assigneeId?.toString() !== prevAssigneeId) {
+      await this.activityService.logActivity({
+        workspaceId: updatedTask.workspaceId as any,
+        projectId: updatedTask.projectId as any,
+        taskId: updatedTask.id as any,
+        userId: userId as any,
+        action: 'TASK_ASSIGNED',
+        details: { title: updatedTask.title, assigneeId: updateData.assigneeId },
+      });
+    }
+
+    return updatedTask;
   }
 
   /**
@@ -104,7 +155,18 @@ export class TaskService {
       createdAt: new Date(),
     });
 
-    return this.repository.saveTask(task);
+    const updatedTask = await this.repository.saveTask(task);
+
+    await this.activityService.logActivity({
+      workspaceId: updatedTask.workspaceId as any,
+      projectId: updatedTask.projectId as any,
+      taskId: updatedTask.id as any,
+      userId: userId as any,
+      action: 'TASK_COMMENT_ADDED',
+      details: { title: updatedTask.title, contentSnippet: content.slice(0, 60) },
+    });
+
+    return updatedTask;
   }
 
   /**

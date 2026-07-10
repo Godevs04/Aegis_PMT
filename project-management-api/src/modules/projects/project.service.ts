@@ -2,12 +2,15 @@ import ProjectRepository from './project.repository';
 import Workspace from '../workspaces/workspace.model';
 import AppError from '../../shared/utils/appError';
 import { IProject } from './project.model';
+import ActivityService from '../activities/activity.service';
 
 export class ProjectService {
   private repository: ProjectRepository;
+  private activityService: ActivityService;
 
   constructor() {
     this.repository = new ProjectRepository();
+    this.activityService = new ActivityService();
   }
 
   /**
@@ -36,12 +39,22 @@ export class ProjectService {
   ): Promise<IProject> {
     await this.checkWorkspaceMembership(workspaceId, userId);
 
-    return this.repository.createProject({
+    const project = await this.repository.createProject({
       name,
       description,
       workspaceId: workspaceId as any,
       createdBy: userId as any,
     });
+
+    await this.activityService.logActivity({
+      workspaceId: workspaceId as any,
+      projectId: project.id as any,
+      userId: userId as any,
+      action: 'PROJECT_CREATED',
+      details: { name: project.name },
+    });
+
+    return project;
   }
 
   /**

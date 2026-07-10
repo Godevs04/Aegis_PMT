@@ -27,6 +27,8 @@ import CreateProjectModal from '@/components/project/create-project-modal';
 import { useWorkspaceStore } from '@/store/workspace-store';
 import { useTasksQuery, useUpdateTaskMutation } from '@/hooks/use-tasks';
 import CreateTaskModal from '@/components/task/create-task-modal';
+import NotificationBell from '@/components/notification/notification-bell';
+import { useWorkspaceActivitiesQuery } from '@/hooks/use-activities';
 
 export default function Home() {
   const router = useRouter();
@@ -40,6 +42,7 @@ export default function Home() {
   const { data: tasks, isLoading: isLoadingTasks } = useTasksQuery(currentWorkspaceId);
   const updateTaskMutation = useUpdateTaskMutation();
   const [isTaskModalOpen, setIsTaskModalOpen] = useState(false);
+  const { data: activities, isLoading: isLoadingActivities } = useWorkspaceActivitiesQuery(currentWorkspaceId);
 
   useEffect(() => {
     setMounted(true);
@@ -236,10 +239,7 @@ export default function Home() {
             />
           </div>
           <div className="flex items-center space-x-4">
-            <button className="relative p-1.5 rounded-full hover:bg-zinc-800 text-muted-foreground hover:text-white transition-colors">
-              <Bell className="h-4 w-4" />
-              <span className="absolute top-1 right-1 h-1.5 w-1.5 bg-primary rounded-full" />
-            </button>
+            <NotificationBell />
           </div>
         </header>
 
@@ -322,61 +322,114 @@ export default function Home() {
             </div>
 
             {/* Today's Tasks Section */}
-            <div className="p-6 border border-border bg-card/30 rounded-xl space-y-4">
-              <div className="flex items-center justify-between">
-                <h2 className="text-sm font-semibold tracking-tight text-white">
-                  Workspace Tasks
-                </h2>
-                <Button size="sm" onClick={() => setIsTaskModalOpen(true)} variant="outline" className="h-8">
-                  <Plus className="h-3.5 w-3.5 mr-1" /> Add Task
-                </Button>
-              </div>
-              <div className="space-y-2">
-                {isLoadingTasks ? (
-                  <div className="text-xs text-muted-foreground py-4 text-center">Loading tasks...</div>
-                ) : !tasks || tasks.length === 0 ? (
-                  <div className="text-xs text-muted-foreground py-4 text-center">No tasks found. Create a task to get started!</div>
-                ) : (
-                  tasks.map((task) => (
-                    <div
-                      key={task._id}
-                      className="p-4 border border-border/60 bg-zinc-900/40 rounded-lg flex justify-between items-center hover:border-primary/40 transition-colors cursor-pointer"
-                    >
-                      <div className="flex items-center space-x-3">
-                        <div
-                          className={`h-2 w-2 rounded-full ${
-                            task.status === 'done'
-                              ? 'bg-emerald-400'
-                              : task.status === 'in_progress'
-                              ? 'bg-blue-400'
-                              : 'bg-zinc-400'
-                          }`}
-                        />
-                        <div className="flex flex-col">
-                          <span className="text-xs font-semibold text-white">
-                            {task.title}
-                          </span>
-                          <span className="text-[10px] text-muted-foreground mt-0.5">
-                            {task.projectId?.name || 'No Project'}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              {/* Workspace Tasks */}
+              <div className="lg:col-span-2 p-6 border border-border bg-card/30 rounded-xl space-y-4">
+                <div className="flex items-center justify-between">
+                  <h2 className="text-sm font-semibold tracking-tight text-white">
+                    Workspace Tasks
+                  </h2>
+                  <Button size="sm" onClick={() => setIsTaskModalOpen(true)} variant="outline" className="h-8">
+                    <Plus className="h-3.5 w-3.5 mr-1" /> Add Task
+                  </Button>
+                </div>
+                <div className="space-y-2">
+                  {isLoadingTasks ? (
+                    <div className="text-xs text-muted-foreground py-4 text-center">Loading tasks...</div>
+                  ) : !tasks || tasks.length === 0 ? (
+                    <div className="text-xs text-muted-foreground py-4 text-center">No tasks found. Create a task to get started!</div>
+                  ) : (
+                    tasks.map((task) => (
+                      <div
+                        key={task._id}
+                        className="p-4 border border-border/60 bg-zinc-900/40 rounded-lg flex justify-between items-center hover:border-primary/40 transition-colors cursor-pointer"
+                      >
+                        <div className="flex items-center space-x-3">
+                          <div
+                            className={`h-2 w-2 rounded-full ${
+                              task.status === 'done'
+                                ? 'bg-emerald-400'
+                                : task.status === 'in_progress'
+                                ? 'bg-blue-400'
+                                : 'bg-zinc-400'
+                            }`}
+                          />
+                          <div className="flex flex-col">
+                            <span className="text-xs font-semibold text-white">
+                              {task.title}
+                            </span>
+                            <span className="text-[10px] text-muted-foreground mt-0.5">
+                              {task.projectId?.name || 'No Project'}
+                            </span>
+                          </div>
+                        </div>
+                        <div className="flex items-center space-x-3">
+                          <span
+                            className={`text-[10px] border px-2 py-0.5 rounded-full font-medium ${
+                              task.priority === 'urgent' || task.priority === 'high'
+                                ? 'bg-red-500/10 border-red-500/20 text-red-400'
+                                : task.priority === 'medium'
+                                ? 'bg-yellow-500/10 border-yellow-500/20 text-yellow-400'
+                                : 'bg-zinc-500/10 border-zinc-500/20 text-zinc-400'
+                            }`}
+                          >
+                            {task.priority.toUpperCase()}
                           </span>
                         </div>
                       </div>
-                      <div className="flex items-center space-x-3">
-                        <span
-                          className={`text-[10px] border px-2 py-0.5 rounded-full font-medium ${
-                            task.priority === 'urgent' || task.priority === 'high'
-                              ? 'bg-red-500/10 border-red-500/20 text-red-400'
-                              : task.priority === 'medium'
-                              ? 'bg-yellow-500/10 border-yellow-500/20 text-yellow-400'
-                              : 'bg-zinc-500/10 border-zinc-500/20 text-zinc-400'
-                          }`}
-                        >
-                          {task.priority.toUpperCase()}
-                        </span>
-                      </div>
-                    </div>
-                  ))
-                )}
+                    ))
+                  )}
+                </div>
+              </div>
+
+              {/* Workspace Activity Feed */}
+              <div className="p-6 border border-border bg-card/30 rounded-xl space-y-4">
+                <h2 className="text-sm font-semibold tracking-tight text-white">
+                  Recent Activity
+                </h2>
+                <div className="space-y-4 max-h-[350px] overflow-y-auto pr-1">
+                  {isLoadingActivities ? (
+                    <div className="text-xs text-muted-foreground py-4 text-center">Loading activities...</div>
+                  ) : !activities || activities.length === 0 ? (
+                    <div className="text-xs text-muted-foreground py-4 text-center">No activity logged yet.</div>
+                  ) : (
+                    activities.map((activity) => {
+                      let actionText = '';
+                      if (activity.action === 'TASK_CREATED') {
+                        actionText = `created task "${activity.details?.title || 'Unknown Task'}"`;
+                      } else if (activity.action === 'TASK_STATUS_UPDATED') {
+                        actionText = `changed status of "${activity.details?.title}" to ${activity.details?.nextStatus}`;
+                      } else if (activity.action === 'TASK_COMMENT_ADDED') {
+                        actionText = `commented on "${activity.details?.title}"`;
+                      } else if (activity.action === 'PROJECT_CREATED') {
+                        actionText = `created project "${activity.details?.name}"`;
+                      } else if (activity.action === 'WORKSPACE_CREATED') {
+                        actionText = `initialized workspace context`;
+                      } else if (activity.action === 'MEMBER_JOINED') {
+                        actionText = `joined the workspace as ${activity.details?.role}`;
+                      } else {
+                        actionText = `triggered an action`;
+                      }
+
+                      return (
+                        <div key={activity._id} className="flex items-start space-x-2.5 text-[11px] leading-relaxed">
+                          <div className="h-5 w-5 rounded-full bg-primary/20 flex items-center justify-center font-bold text-[9px] text-primary shrink-0">
+                            {activity.userId?.name?.charAt(0)}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-zinc-300">
+                              <strong className="text-white font-medium">{activity.userId?.name}</strong>{' '}
+                              {actionText}
+                            </p>
+                            <span className="text-[9px] text-muted-foreground mt-0.5 block">
+                              {new Date(activity.createdAt).toLocaleDateString()}
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
               </div>
             </div>
           </main>

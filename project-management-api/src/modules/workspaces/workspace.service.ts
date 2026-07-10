@@ -6,12 +6,15 @@ import { IInvitation } from './invitation.model';
 import { UserRole } from '../../config/roles';
 import { sendEmail } from '../../emails/mail.service';
 import User from '../users/user.model';
+import ActivityService from '../activities/activity.service';
 
 export class WorkspaceService {
   private repository: WorkspaceRepository;
+  private activityService: ActivityService;
 
   constructor() {
     this.repository = new WorkspaceRepository();
+    this.activityService = new ActivityService();
   }
 
   /**
@@ -44,6 +47,13 @@ export class WorkspaceService {
         },
       ],
       createdBy: userId as any,
+    });
+
+    await this.activityService.logActivity({
+      workspaceId: workspace.id,
+      userId: userId as any,
+      action: 'WORKSPACE_CREATED',
+      details: { name: workspace.name },
     });
 
     return workspace;
@@ -164,6 +174,13 @@ export class WorkspaceService {
     // Update invitation status
     invitation.status = 'accepted';
     await this.repository.saveInvitation(invitation);
+
+    await this.activityService.logActivity({
+      workspaceId: workspace.id,
+      userId: userId as any,
+      action: 'MEMBER_JOINED',
+      details: { email: user.email, role: invitation.role, workspaceName: workspace.name },
+    });
 
     return workspace;
   }
