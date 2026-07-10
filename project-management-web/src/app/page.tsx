@@ -25,6 +25,8 @@ import CreateWorkspaceModal from '@/components/workspace/create-workspace-modal'
 import { useProjectsQuery } from '@/hooks/use-projects';
 import CreateProjectModal from '@/components/project/create-project-modal';
 import { useWorkspaceStore } from '@/store/workspace-store';
+import { useTasksQuery, useUpdateTaskMutation } from '@/hooks/use-tasks';
+import CreateTaskModal from '@/components/task/create-task-modal';
 
 export default function Home() {
   const router = useRouter();
@@ -35,6 +37,9 @@ export default function Home() {
   const { currentWorkspaceId } = useWorkspaceStore();
   const { data: projects, isLoading: isLoadingProjects } = useProjectsQuery(currentWorkspaceId);
   const [isProjectModalOpen, setIsProjectModalOpen] = useState(false);
+  const { data: tasks, isLoading: isLoadingTasks } = useTasksQuery(currentWorkspaceId);
+  const updateTaskMutation = useUpdateTaskMutation();
+  const [isTaskModalOpen, setIsTaskModalOpen] = useState(false);
 
   useEffect(() => {
     setMounted(true);
@@ -278,7 +283,9 @@ export default function Home() {
                   <span className="text-xs text-muted-foreground font-medium">
                     Tasks Assigned
                   </span>
-                  <h3 className="text-2xl font-bold">12</h3>
+                  <h3 className="text-2xl font-bold">
+                    {tasks?.filter(t => t.assigneeId?._id === user?.id || t.assigneeId === user?.id).length || 0}
+                  </h3>
                 </div>
                 <div className="h-10 w-10 bg-primary/10 rounded-lg flex items-center justify-center">
                   <TrendingUp className="h-5 w-5 text-primary" />
@@ -290,7 +297,9 @@ export default function Home() {
                   <span className="text-xs text-muted-foreground font-medium">
                     In Progress
                   </span>
-                  <h3 className="text-2xl font-bold">4</h3>
+                  <h3 className="text-2xl font-bold">
+                    {tasks?.filter(t => t.status === 'in_progress').length || 0}
+                  </h3>
                 </div>
                 <div className="h-10 w-10 bg-blue-500/10 rounded-lg flex items-center justify-center">
                   <Clock className="h-5 w-5 text-blue-400" />
@@ -302,7 +311,9 @@ export default function Home() {
                   <span className="text-xs text-muted-foreground font-medium">
                     Completed Tasks
                   </span>
-                  <h3 className="text-2xl font-bold">8</h3>
+                  <h3 className="text-2xl font-bold">
+                    {tasks?.filter(t => t.status === 'done').length || 0}
+                  </h3>
                 </div>
                 <div className="h-10 w-10 bg-emerald-500/10 rounded-lg flex items-center justify-center">
                   <CheckCircle className="h-5 w-5 text-emerald-400" />
@@ -312,33 +323,60 @@ export default function Home() {
 
             {/* Today's Tasks Section */}
             <div className="p-6 border border-border bg-card/30 rounded-xl space-y-4">
-              <h2 className="text-sm font-semibold tracking-tight text-white">
-                Assigned Tasks
-              </h2>
+              <div className="flex items-center justify-between">
+                <h2 className="text-sm font-semibold tracking-tight text-white">
+                  Workspace Tasks
+                </h2>
+                <Button size="sm" onClick={() => setIsTaskModalOpen(true)} variant="outline" className="h-8">
+                  <Plus className="h-3.5 w-3.5 mr-1" /> Add Task
+                </Button>
+              </div>
               <div className="space-y-2">
-                <div className="p-4 border border-border/60 bg-zinc-900/40 rounded-lg flex justify-between items-center hover:border-primary/40 transition-colors cursor-pointer">
-                  <div className="flex items-center space-x-3">
-                    <div className="h-2 w-2 rounded-full bg-red-400" />
-                    <span className="text-xs font-semibold text-white">
-                      Setup MongoDB schema indexes
-                    </span>
-                  </div>
-                  <span className="text-[10px] bg-red-500/10 border border-red-500/20 text-red-400 px-2 py-0.5 rounded-full font-medium">
-                    High
-                  </span>
-                </div>
-
-                <div className="p-4 border border-border/60 bg-zinc-900/40 rounded-lg flex justify-between items-center hover:border-primary/40 transition-colors cursor-pointer">
-                  <div className="flex items-center space-x-3">
-                    <div className="h-2 w-2 rounded-full bg-yellow-400" />
-                    <span className="text-xs font-semibold text-white">
-                      Configure SMTP authentication variables
-                    </span>
-                  </div>
-                  <span className="text-[10px] bg-yellow-500/10 border border-yellow-500/20 text-yellow-400 px-2 py-0.5 rounded-full font-medium">
-                    Medium
-                  </span>
-                </div>
+                {isLoadingTasks ? (
+                  <div className="text-xs text-muted-foreground py-4 text-center">Loading tasks...</div>
+                ) : !tasks || tasks.length === 0 ? (
+                  <div className="text-xs text-muted-foreground py-4 text-center">No tasks found. Create a task to get started!</div>
+                ) : (
+                  tasks.map((task) => (
+                    <div
+                      key={task._id}
+                      className="p-4 border border-border/60 bg-zinc-900/40 rounded-lg flex justify-between items-center hover:border-primary/40 transition-colors cursor-pointer"
+                    >
+                      <div className="flex items-center space-x-3">
+                        <div
+                          className={`h-2 w-2 rounded-full ${
+                            task.status === 'done'
+                              ? 'bg-emerald-400'
+                              : task.status === 'in_progress'
+                              ? 'bg-blue-400'
+                              : 'bg-zinc-400'
+                          }`}
+                        />
+                        <div className="flex flex-col">
+                          <span className="text-xs font-semibold text-white">
+                            {task.title}
+                          </span>
+                          <span className="text-[10px] text-muted-foreground mt-0.5">
+                            {task.projectId?.name || 'No Project'}
+                          </span>
+                        </div>
+                      </div>
+                      <div className="flex items-center space-x-3">
+                        <span
+                          className={`text-[10px] border px-2 py-0.5 rounded-full font-medium ${
+                            task.priority === 'urgent' || task.priority === 'high'
+                              ? 'bg-red-500/10 border-red-500/20 text-red-400'
+                              : task.priority === 'medium'
+                              ? 'bg-yellow-500/10 border-yellow-500/20 text-yellow-400'
+                              : 'bg-zinc-500/10 border-zinc-500/20 text-zinc-400'
+                          }`}
+                        >
+                          {task.priority.toUpperCase()}
+                        </span>
+                      </div>
+                    </div>
+                  ))
+                )}
               </div>
             </div>
           </main>
@@ -353,6 +391,11 @@ export default function Home() {
       <CreateProjectModal
         isOpen={isProjectModalOpen}
         onClose={() => setIsProjectModalOpen(false)}
+      />
+
+      <CreateTaskModal
+        isOpen={isTaskModalOpen}
+        onClose={() => setIsTaskModalOpen(false)}
       />
     </div>
   );
