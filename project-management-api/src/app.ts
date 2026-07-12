@@ -6,6 +6,7 @@ import morgan from 'morgan';
 import rateLimit from 'express-rate-limit';
 import errorHandler from './middlewares/error';
 import sendResponse from './shared/utils/response';
+import { setupApiDocs } from './docs/scalar';
 
 import authRoutes from './modules/auth/auth.routes';
 import userRoutes from './modules/users/user.routes';
@@ -68,12 +69,15 @@ app.use(cookieParser());
 // Rate limiting
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // Limit each IP to 100 requests per windowMs
+  max: 500, // Increased to handle SPA traffic (multiple API calls per page)
   standardHeaders: true,
   legacyHeaders: false,
   message: 'Too many requests from this IP, please try again after 15 minutes',
 });
 app.use('/api', limiter);
+
+// API Documentation (Scalar UI)
+setupApiDocs(app);
 
 // Routes
 app.use('/api/auth', authRoutes);

@@ -176,16 +176,12 @@ export class AuthService {
 
     // Refresh token rotation: verify token version matches current DB version
     if (decoded.tokenVersion !== user.tokenVersion) {
-      // Re-use detected! Mark all sessions invalid as a security compromise mitigation
-      user.tokenVersion += 1;
-      await this.userRepository.save(user);
-      throw new AppError('Token compromise detected. Please sign in again.', 401);
+      // Token version mismatch — either token was already used or session was invalidated
+      throw new AppError('Session expired. Please sign in again.', 401);
     }
 
-    // Rotate refresh token: increment version, save, and sign new pair
-    user.tokenVersion += 1;
-    await this.userRepository.save(user);
-
+    // Issue new token pair (same version — no rotation to avoid race conditions
+    // with concurrent requests from multiple tabs/components)
     const accessToken = this.generateAccessToken(user);
     const refreshToken = this.generateRefreshToken(user);
 

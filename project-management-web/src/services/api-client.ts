@@ -1,7 +1,7 @@
 import axios from 'axios';
 import { useAuthStore } from '../store/auth-store';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5002/api';
 
 export const apiClient = axios.create({
   baseURL: API_URL,
@@ -32,7 +32,14 @@ apiClient.interceptors.response.use(
     const originalRequest = error.config;
 
     // Handle token expiration & automatic refresh
-    if (error.response?.status === 401 && !originalRequest._retry) {
+    // Skip retry for auth endpoints to prevent infinite loops
+    if (
+      error.response?.status === 401 &&
+      !originalRequest._retry &&
+      !originalRequest.url?.includes('/auth/refresh') &&
+      !originalRequest.url?.includes('/auth/login') &&
+      !originalRequest.url?.includes('/auth/register')
+    ) {
       originalRequest._retry = true;
       try {
         // Attempt to refresh the token using refresh cookie
