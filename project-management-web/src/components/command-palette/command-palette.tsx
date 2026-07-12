@@ -14,16 +14,22 @@ import {
   Plus,
   Search,
   ArrowRight,
+  FileText,
+  Tag,
+  User,
+  MessageSquare,
+  Loader2,
 } from 'lucide-react';
+import { useWorkspaceStore } from '@/store/workspace-store';
+import searchService, { SearchResult } from '@/services/search-service';
 
 interface CommandItem {
   id: string;
   label: string;
   description?: string;
   icon: React.ElementType;
-  category: 'navigation' | 'action' | 'recent';
+  category: 'navigation' | 'action' | 'search';
   action: () => void;
-  keywords?: string[];
 }
 
 interface CommandPaletteProps {
@@ -31,72 +37,120 @@ interface CommandPaletteProps {
   onClose: () => void;
 }
 
+const SEARCH_ICON_MAP: Record<string, React.ElementType> = {
+  task: CheckSquare,
+  project: FolderKanban,
+  member: User,
+  comment: MessageSquare,
+  label: Tag,
+};
+
 export function CommandPalette({ isOpen, onClose }: CommandPaletteProps) {
   const router = useRouter();
+  const { currentWorkspaceId } = useWorkspaceStore();
   const [query, setQuery] = useState('');
   const [selectedIndex, setSelectedIndex] = useState(0);
+  const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
-
-  // Define commands
-  const commands: CommandItem[] = [
-    // Navigation
-    { id: 'nav-dashboard', label: 'Dashboard', icon: LayoutDashboard, category: 'navigation', action: () => navigate('/'), keywords: ['home', 'overview'] },
-    { id: 'nav-projects', label: 'Projects', icon: FolderKanban, category: 'navigation', action: () => navigate('/projects'), keywords: ['project', 'board'] },
-    { id: 'nav-tasks', label: 'Tasks', icon: CheckSquare, category: 'navigation', action: () => navigate('/tasks'), keywords: ['task', 'todo', 'issues'] },
-    { id: 'nav-teams', label: 'Teams', icon: Users, category: 'navigation', action: () => navigate('/teams'), keywords: ['team', 'members', 'people'] },
-    { id: 'nav-sprints', label: 'Sprints', icon: Zap, category: 'navigation', action: () => navigate('/sprints'), keywords: ['sprint', 'iteration', 'cycle'] },
-    { id: 'nav-calendar', label: 'Calendar', icon: Calendar, category: 'navigation', action: () => navigate('/calendar'), keywords: ['calendar', 'schedule', 'dates'] },
-    { id: 'nav-activity', label: 'Activity', icon: Activity, category: 'navigation', action: () => navigate('/activity'), keywords: ['activity', 'feed', 'log'] },
-    { id: 'nav-settings', label: 'Settings', icon: Settings, category: 'navigation', action: () => navigate('/settings'), keywords: ['settings', 'preferences', 'config'] },
-    { id: 'nav-workspace-settings', label: 'Workspace Settings', icon: Settings, category: 'navigation', action: () => navigate('/settings/workspace'), keywords: ['workspace', 'settings'] },
-    // Actions
-    { id: 'act-create-project', label: 'Create Project', description: 'Start a new project', icon: Plus, category: 'action', action: () => navigate('/projects?create=true'), keywords: ['new', 'create', 'project'] },
-    { id: 'act-create-task', label: 'Create Task', description: 'Add a new task', icon: Plus, category: 'action', action: () => navigate('/tasks?create=true'), keywords: ['new', 'create', 'task', 'add'] },
-    { id: 'act-invite-member', label: 'Invite Member', description: 'Invite someone to workspace', icon: Users, category: 'action', action: () => navigate('/settings/workspace'), keywords: ['invite', 'member', 'add', 'people'] },
-  ];
-
-  // Filter commands based on query
-  const filteredCommands = query.trim()
-    ? commands.filter((cmd) => {
-        const searchLower = query.toLowerCase();
-        return (
-          cmd.label.toLowerCase().includes(searchLower) ||
-          cmd.description?.toLowerCase().includes(searchLower) ||
-          cmd.keywords?.some((kw) => kw.includes(searchLower))
-        );
-      })
-    : commands;
-
-  // Group by category
-  const grouped = {
-    navigation: filteredCommands.filter((c) => c.category === 'navigation'),
-    action: filteredCommands.filter((c) => c.category === 'action'),
-  };
-
-  const flatList = [...grouped.action, ...grouped.navigation];
+  const searchTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   const navigate = useCallback((path: string) => {
     onClose();
     router.push(path);
   }, [onClose, router]);
 
+  // Static commands
+  const staticCommands: CommandItem[] = [
+    { id: 'nav-dashboard', label: 'Dashboard', icon: LayoutDashboard, category: 'navigation', action: () => navigate('/') },
+    { id: 'nav-projects', label: 'Projects', icon: FolderKanban, category: 'navigation', action: () => navigate('/projects') },
+    { id: 'nav-tasks', label: 'Tasks', icon: CheckSquare, category: 'navigation', action: () => navigate('/tasks') },
+    { id: 'nav-teams', label: 'Teams', icon: Users, category: 'navigation', action: () => navigate('/teams') },
+    { id: 'nav-sprints', label: 'Sprints', icon: Zap, category: 'navigation', action: () => navigate('/sprints') },
+    { id: 'nav-calendar', label: 'Calendar', icon: Calendar, category: 'navigation', action: () => navigate('/calendar') },
+    { id: 'nav-activity', label: 'Activity', icon: Activity, category: 'navigation', action: () => navigate('/activity') },
+    { id: 'nav-settings', label: 'Settings', icon: Settings, category: 'navigation', action: () => navigate('/settings') },
+    { id: 'act-create-project', label: 'Create Project', description: 'Start a new project', icon: Plus, category: 'action', action: () => navigate('/projects?create=true') },
+    { id: 'act-create-task', label: 'Create Task', description: 'Add a new task', icon: Plus, category: 'action', action: () => navigate('/tasks?create=true') },
+  ];
+
+  // Convert search results to CommandItems
+  const searchCommandItems: CommandItem[] = searchResults.map((result) => ({
+    id: `search-${result.type}-${result.id}`,
+    label: result.title,
+    description: result.subtitle,
+    icon: SEARCH_ICON_MAP[result.type] || FileText,
+    category: 'search' as const,
+    action: () => {
+      if (result.type === 'task') navigate(`/projects/${result.meta?.projectId}`);
+      else if (result.type === 'project') navigate(`/projects/${result.id}`);
+      else if (result.type === 'member') onClose();
+      else if (result.type === 'comment') navigate(`/projects/${result.meta?.projectId}`);
+      else onClose();
+    },
+  }));
+
+  // Filter static commands when no API results
+  const filteredStatic = query.trim()
+    ? staticCommands.filter((cmd) =>
+        cmd.label.toLowerCase().includes(query.toLowerCase()) ||
+        cmd.description?.toLowerCase().includes(query.toLowerCase())
+      )
+    : staticCommands;
+
+  // Combined list: search results first, then filtered static commands
+  const flatList = query.trim().length >= 2 && searchCommandItems.length > 0
+    ? [...searchCommandItems, ...filteredStatic.slice(0, 3)]
+    : filteredStatic;
+
+  // Debounced search
+  useEffect(() => {
+    if (searchTimerRef.current) clearTimeout(searchTimerRef.current);
+
+    if (!query.trim() || query.trim().length < 2 || !currentWorkspaceId) {
+      setSearchResults([]);
+      setIsSearching(false);
+      return;
+    }
+
+    setIsSearching(true);
+    searchTimerRef.current = setTimeout(async () => {
+      try {
+        const response = await searchService.search(query.trim(), currentWorkspaceId, { limit: 10 });
+        setSearchResults(response.results);
+      } catch {
+        setSearchResults([]);
+      } finally {
+        setIsSearching(false);
+      }
+    }, 300);
+
+    return () => {
+      if (searchTimerRef.current) clearTimeout(searchTimerRef.current);
+    };
+  }, [query, currentWorkspaceId]);
+
   // Reset state when opened
   useEffect(() => {
     if (isOpen) {
       setQuery('');
       setSelectedIndex(0);
+      setSearchResults([]);
       setTimeout(() => inputRef.current?.focus(), 50);
     }
   }, [isOpen]);
 
-  // Ensure selected item is visible
+  // Scroll selected into view
   useEffect(() => {
     if (listRef.current) {
       const selected = listRef.current.querySelector('[data-selected="true"]');
       selected?.scrollIntoView({ block: 'nearest' });
     }
   }, [selectedIndex]);
+
+  // Reset selected index on results change
+  useEffect(() => { setSelectedIndex(0); }, [query, searchResults.length]);
 
   // Keyboard navigation
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -111,9 +165,7 @@ export function CommandPalette({ isOpen, onClose }: CommandPaletteProps) {
         break;
       case 'Enter':
         e.preventDefault();
-        if (flatList[selectedIndex]) {
-          flatList[selectedIndex].action();
-        }
+        if (flatList[selectedIndex]) flatList[selectedIndex].action();
         break;
       case 'Escape':
         e.preventDefault();
@@ -122,22 +174,11 @@ export function CommandPalette({ isOpen, onClose }: CommandPaletteProps) {
     }
   };
 
-  // Reset selected index when results change
-  useEffect(() => {
-    setSelectedIndex(0);
-  }, [query]);
-
   if (!isOpen) return null;
 
   return (
     <>
-      {/* Backdrop */}
-      <div
-        className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-sm"
-        onClick={onClose}
-      />
-
-      {/* Palette */}
+      <div className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-sm" onClick={onClose} />
       <div className="fixed inset-0 z-[100] flex items-start justify-center pt-[20vh] px-4">
         <div
           className="w-full max-w-lg rounded-xl border border-border bg-card shadow-2xl overflow-hidden"
@@ -152,12 +193,15 @@ export function CommandPalette({ isOpen, onClose }: CommandPaletteProps) {
               type="text"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Type a command or search..."
+              placeholder="Search or type a command..."
               className="flex-1 h-12 px-3 bg-transparent text-sm text-foreground placeholder:text-muted-foreground focus:outline-none"
             />
-            <kbd className="hidden sm:inline-flex text-[10px] text-muted-foreground/60 bg-secondary px-1.5 py-0.5 rounded border border-border">
-              ESC
-            </kbd>
+            {isSearching && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground shrink-0" />}
+            {!isSearching && (
+              <kbd className="hidden sm:inline-flex text-[10px] text-muted-foreground/60 bg-secondary px-1.5 py-0.5 rounded border border-border">
+                ESC
+              </kbd>
+            )}
           </div>
 
           {/* Results */}
@@ -169,42 +213,30 @@ export function CommandPalette({ isOpen, onClose }: CommandPaletteProps) {
               </div>
             ) : (
               <>
-                {/* Actions */}
-                {grouped.action.length > 0 && (
+                {/* Search Results */}
+                {searchCommandItems.length > 0 && query.trim().length >= 2 && (
                   <div>
                     <p className="px-4 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60">
-                      Actions
+                      Search Results
                     </p>
-                    {grouped.action.map((cmd) => {
-                      const globalIndex = flatList.indexOf(cmd);
-                      return (
-                        <CommandRow
-                          key={cmd.id}
-                          item={cmd}
-                          isSelected={globalIndex === selectedIndex}
-                          onSelect={() => cmd.action()}
-                        />
-                      );
+                    {searchCommandItems.map((cmd) => {
+                      const idx = flatList.indexOf(cmd);
+                      return <CommandRow key={cmd.id} item={cmd} isSelected={idx === selectedIndex} onSelect={cmd.action} />;
                     })}
                   </div>
                 )}
 
-                {/* Navigation */}
-                {grouped.navigation.length > 0 && (
+                {/* Static Commands */}
+                {filteredStatic.length > 0 && (
                   <div>
-                    <p className="px-4 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60">
-                      Navigation
-                    </p>
-                    {grouped.navigation.map((cmd) => {
-                      const globalIndex = flatList.indexOf(cmd);
-                      return (
-                        <CommandRow
-                          key={cmd.id}
-                          item={cmd}
-                          isSelected={globalIndex === selectedIndex}
-                          onSelect={() => cmd.action()}
-                        />
-                      );
+                    {searchCommandItems.length > 0 && query.trim().length >= 2 && (
+                      <p className="px-4 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60">
+                        Commands
+                      </p>
+                    )}
+                    {(query.trim().length >= 2 && searchCommandItems.length > 0 ? filteredStatic.slice(0, 3) : filteredStatic).map((cmd) => {
+                      const idx = flatList.indexOf(cmd);
+                      return <CommandRow key={cmd.id} item={cmd} isSelected={idx === selectedIndex} onSelect={cmd.action} />;
                     })}
                   </div>
                 )}
@@ -235,34 +267,20 @@ export function CommandPalette({ isOpen, onClose }: CommandPaletteProps) {
   );
 }
 
-// ─── Command Row ─────────────────────────────────────────────────────────────
-
-function CommandRow({
-  item,
-  isSelected,
-  onSelect,
-}: {
-  item: CommandItem;
-  isSelected: boolean;
-  onSelect: () => void;
-}) {
+function CommandRow({ item, isSelected, onSelect }: { item: CommandItem; isSelected: boolean; onSelect: () => void }) {
   const Icon = item.icon;
-
   return (
     <button
       data-selected={isSelected}
       onClick={onSelect}
-      className={`
-        flex items-center w-full px-4 py-2 text-sm gap-3 transition-colors
-        ${isSelected ? 'bg-primary/10 text-primary' : 'text-foreground hover:bg-secondary'}
-      `}
+      className={`flex items-center w-full px-4 py-2 text-sm gap-3 transition-colors ${
+        isSelected ? 'bg-primary/10 text-primary' : 'text-foreground hover:bg-secondary'
+      }`}
     >
       <Icon className="h-4 w-4 shrink-0 text-muted-foreground" />
       <div className="flex-1 text-left min-w-0">
-        <span className="font-medium">{item.label}</span>
-        {item.description && (
-          <span className="ml-2 text-xs text-muted-foreground">{item.description}</span>
-        )}
+        <span className="font-medium truncate block">{item.label}</span>
+        {item.description && <span className="text-xs text-muted-foreground truncate block">{item.description}</span>}
       </div>
       {isSelected && <ArrowRight className="h-3.5 w-3.5 shrink-0 text-primary" />}
     </button>

@@ -5,6 +5,7 @@ import { usePathname } from 'next/navigation';
 import { Bell, Menu, Search } from 'lucide-react';
 import { useSidebar } from './sidebar-context';
 import { useAuthStore } from '@/store/auth-store';
+import { useUnreadCountQuery } from '@/hooks/use-notifications';
 
 /**
  * Breadcrumb mapping from pathname segments to human-readable labels.
@@ -24,6 +25,7 @@ export function Header() {
   const pathname = usePathname();
   const { toggleMobile } = useSidebar();
   const { user } = useAuthStore();
+  const { data: unreadCount } = useUnreadCountQuery();
 
   // Generate breadcrumbs from pathname
   const segments = pathname.split('/').filter(Boolean);
@@ -90,7 +92,11 @@ export function Header() {
         >
           <Bell className="h-4 w-4" />
           {/* Unread indicator dot */}
-          <span className="absolute top-1.5 right-1.5 h-2 w-2 rounded-full bg-primary animate-pulse" />
+          {(unreadCount ?? 0) > 0 && (
+            <span className="absolute top-1 right-1 h-2.5 w-2.5 rounded-full bg-primary text-[7px] font-bold text-white flex items-center justify-center">
+              {unreadCount && unreadCount > 9 ? '9+' : unreadCount}
+            </span>
+          )}
         </button>
 
         {/* User avatar */}
