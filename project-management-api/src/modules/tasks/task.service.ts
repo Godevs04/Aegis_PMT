@@ -3,6 +3,11 @@ import Workspace from '../workspaces/workspace.model';
 import AppError from '../../shared/utils/appError';
 import { ITask } from './task.model';
 import ActivityService from '../activities/activity.service';
+import { WorkspaceMember } from '../members/workspace-member.model';
+import { auditLogService } from '../audit-logs/audit-log.service';
+import { snapshot } from '../../shared/utils/diff';
+
+const TASK_AUDIT_FIELDS = ['title', 'description', 'status', 'priority', 'assigneeId', 'dueDate', 'projectId'];
 
 export class TaskService {
   private repository: TaskRepository;
@@ -22,8 +27,12 @@ export class TaskService {
       throw new AppError('Workspace not found.', 404);
     }
 
-    const isMember = workspace.members.some((m) => m.userId.toString() === userId);
-    if (!isMember) {
+    const member = await WorkspaceMember.findOne({
+      workspaceId,
+      userId,
+      status: 'active',
+    });
+    if (!member) {
       throw new AppError('Access denied. You are not a member of this workspace.', 403);
     }
   }
@@ -40,6 +49,18 @@ export class TaskService {
     const task = await this.repository.createTask({
       ...taskData,
       createdBy: userId as any,
+    });
+
+    // Audit log
+    auditLogService.log({
+      workspaceId: taskData.workspaceId,
+      projectId: task.projectId?.toString(),
+      entityType: 'Task',
+      entityId: task.id,
+      action: 'CREATE',
+      performedBy: userId,
+      newValues: { title: task.title, status: task.status, priority: task.priority, assigneeId: task.assigneeId },
+      metadata: { title: task.title },
     });
 
     await this.activityService.logActivity({
@@ -89,6 +110,9 @@ export class TaskService {
 
     await this.checkWorkspaceMembership(task.workspaceId.toString(), userId);
 
+    // Capture previous values for audit
+    const previousValues = snapshot(task.toObject(), TASK_AUDIT_FIELDS);
+
     // Filter editable attributes
     const allowedKeys: (keyof ITask)[] = [
       'title',
@@ -112,6 +136,22 @@ export class TaskService {
 
     task.updatedBy = userId as any;
     const updatedTask = await this.repository.saveTask(task);
+
+    // Capture new values for audit
+    const newValues = snapshot(updatedTask.toObject(), TASK_AUDIT_FIELDS);
+
+    // Audit log
+    auditLogService.log({
+      workspaceId: updatedTask.workspaceId.toString(),
+      projectId: updatedTask.projectId?.toString(),
+      entityType: 'Task',
+      entityId: updatedTask.id,
+      action: 'UPDATE',
+      performedBy: userId,
+      previousValues,
+      newValues,
+      metadata: { title: updatedTask.title },
+    });
 
     if (updateData.status && updateData.status !== prevStatus) {
       await this.activityService.logActivity({
@@ -179,6 +219,18 @@ export class TaskService {
     }
 
     await this.checkWorkspaceMembership(task.workspaceId.toString(), userId);
+
+    // Audit log before deletion
+    auditLogService.log({
+      workspaceId: task.workspaceId.toString(),
+      projectId: task.projectId?.toString(),
+      entityType: 'Task',
+      entityId: task.id,
+      action: 'DELETE',
+      performedBy: userId,
+      previousValues: { title: task.title, status: task.status, priority: task.priority },
+      metadata: { title: task.title },
+    });
 
     await task.softDelete(userId);
   }

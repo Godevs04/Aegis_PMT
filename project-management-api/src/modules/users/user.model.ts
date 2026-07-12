@@ -6,15 +6,30 @@ export interface IUser extends Document {
   name: string;
   email: string;
   password?: string;
-  role: UserRole;
+  avatarUrl?: string;
+  bio?: string;
+  timezone?: string;
+  language?: string;
+  theme?: 'dark' | 'light' | 'system';
+
+  // Authentication
   isVerified: boolean;
   verificationToken?: string;
   verificationExpires?: Date;
   passwordResetToken?: string;
   passwordResetExpires?: Date;
   tokenVersion: number;
-  avatarUrl?: string;
-  
+
+  // Onboarding
+  isOnboardingComplete: boolean;
+  onboardingStep?: number;
+
+  /**
+   * @deprecated Use membership collections (OrganizationMember, WorkspaceMember, ProjectMember) instead.
+   * Kept temporarily for backward compatibility during migration.
+   */
+  role?: UserRole;
+
   // Auditor fields
   createdAt: Date;
   updatedAt: Date;
@@ -33,7 +48,7 @@ const userSchema = new Schema<IUser>(
       type: String,
       required: [true, 'Name is required'],
       trim: true,
-      maxlength: [50, 'Name cannot exceed 50 characters'],
+      maxlength: [80, 'Name cannot exceed 80 characters'],
     },
     email: {
       type: String,
@@ -52,18 +67,34 @@ const userSchema = new Schema<IUser>(
       minlength: [8, 'Password must be at least 8 characters'],
       select: false, // Prevents password from leaking by default
     },
-    role: {
+    avatarUrl: {
       type: String,
-      enum: Object.values(UserRole),
-      default: UserRole.DEVELOPER,
+      default: '',
+    },
+    bio: {
+      type: String,
+      trim: true,
+      maxlength: [300, 'Bio cannot exceed 300 characters'],
+      default: '',
+    },
+    timezone: {
+      type: String,
+      trim: true,
+      default: 'UTC',
+    },
+    language: {
+      type: String,
+      trim: true,
+      default: 'en',
+    },
+    theme: {
+      type: String,
+      enum: ['dark', 'light', 'system'],
+      default: 'dark',
     },
     isVerified: {
       type: Boolean,
       default: false,
-    },
-    avatarUrl: {
-      type: String,
-      default: '',
     },
     verificationToken: String,
     verificationExpires: Date,
@@ -72,6 +103,20 @@ const userSchema = new Schema<IUser>(
     tokenVersion: {
       type: Number,
       default: 0,
+    },
+    isOnboardingComplete: {
+      type: Boolean,
+      default: false,
+    },
+    onboardingStep: {
+      type: Number,
+      default: 0,
+    },
+    // Deprecated: kept for backward compatibility during migration
+    role: {
+      type: String,
+      enum: Object.values(UserRole),
+      default: UserRole.DEVELOPER,
     },
     deletedAt: {
       type: Date,
@@ -91,12 +136,13 @@ const userSchema = new Schema<IUser>(
   }
 );
 
-// Indexes
+// ─── Indexes ─────────────────────────────────────────────────────────────────
 userSchema.index({ email: 1 });
 userSchema.index({ verificationToken: 1 });
 userSchema.index({ passwordResetToken: 1 });
+userSchema.index({ deletedAt: 1 });
 
-// Document middlewares: Password Hashing
+// ─── Document Middleware: Password Hashing ───────────────────────────────────
 userSchema.pre<IUser>('save', async function (next) {
   if (!this.isModified('password') || !this.password) {
     return next();
@@ -111,20 +157,18 @@ userSchema.pre<IUser>('save', async function (next) {
   }
 });
 
-// Query middleware: Exclude soft deleted records by default
+// ─── Query Middleware: Exclude soft-deleted records ───────────────────────────
 userSchema.pre(/^find/, function (this: any, next) {
-  // Only return documents where deletedAt is null
   this.where({ deletedAt: null });
   next();
 });
 
-// Instance method to compare password
+// ─── Instance Methods ────────────────────────────────────────────────────────
 userSchema.methods.comparePassword = async function (candidatePassword: string): Promise<boolean> {
   if (!this.password) return false;
   return bcrypt.compare(candidatePassword, this.password);
 };
 
-// Instance method to soft delete
 userSchema.methods.softDelete = async function (userId: string): Promise<void> {
   this.deletedAt = new Date();
   this.updatedBy = userId;

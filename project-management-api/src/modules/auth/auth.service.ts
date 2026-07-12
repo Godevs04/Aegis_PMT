@@ -8,7 +8,7 @@ import { UserRole } from '../../config/roles';
 
 interface TokenPayload {
   userId: string;
-  role: string;
+  role?: string;
   tokenVersion: number;
 }
 

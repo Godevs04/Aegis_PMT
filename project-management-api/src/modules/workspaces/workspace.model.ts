@@ -1,17 +1,12 @@
 import { Schema, model, Document } from 'mongoose';
-import { UserRole } from '../../config/roles';
-
-export interface IWorkspaceMember {
-  userId: Schema.Types.ObjectId;
-  role: UserRole;
-  joinedAt: Date;
-}
 
 export interface IWorkspace extends Document {
   name: string;
+  slug: string;
+  description?: string;
+  logo?: string;
   organizationId: Schema.Types.ObjectId;
-  members: IWorkspaceMember[];
-  
+
   // Auditor fields
   createdAt: Date;
   updatedAt: Date;
@@ -31,29 +26,30 @@ const workspaceSchema = new Schema<IWorkspace>(
       trim: true,
       maxlength: [100, 'Workspace name cannot exceed 100 characters'],
     },
+    slug: {
+      type: String,
+      trim: true,
+      lowercase: true,
+      match: [
+        /^[a-z0-9-]+$/,
+        'Slug must contain only lowercase letters, numbers, and hyphens',
+      ],
+    },
+    description: {
+      type: String,
+      trim: true,
+      maxlength: [500, 'Description cannot exceed 500 characters'],
+      default: '',
+    },
+    logo: {
+      type: String,
+      default: '',
+    },
     organizationId: {
       type: Schema.Types.ObjectId,
       ref: 'Organization',
       required: [true, 'Organization ID is required'],
     },
-    members: [
-      {
-        userId: {
-          type: Schema.Types.ObjectId,
-          ref: 'User',
-          required: true,
-        },
-        role: {
-          type: String,
-          enum: Object.values(UserRole),
-          required: true,
-        },
-        joinedAt: {
-          type: Date,
-          default: Date.now,
-        },
-      },
-    ],
     deletedAt: {
       type: Date,
       default: null,
@@ -72,18 +68,34 @@ const workspaceSchema = new Schema<IWorkspace>(
   }
 );
 
-// Indexes
+// ─── Indexes ─────────────────────────────────────────────────────────────────
 workspaceSchema.index({ organizationId: 1 });
-workspaceSchema.index({ 'members.userId': 1 });
+workspaceSchema.index(
+  { slug: 1, organizationId: 1 },
+  { unique: true, partialFilterExpression: { deletedAt: null } }
+);
 workspaceSchema.index({ deletedAt: 1 });
 
-// Query middleware: Exclude soft deleted records
+// ─── Pre-save: Auto-generate slug from name ──────────────────────────────────
+workspaceSchema.pre<IWorkspace>('save', function (next) {
+  if (this.isNew && !this.slug) {
+    this.slug = this.name
+      .toLowerCase()
+      .replace(/[^a-z0-9\s-]/g, '')
+      .replace(/\s+/g, '-')
+      .replace(/-+/g, '-')
+      .trim();
+  }
+  next();
+});
+
+// ─── Query Middleware: Exclude soft-deleted records ───────────────────────────
 workspaceSchema.pre(/^find/, function (this: any, next) {
   this.where({ deletedAt: null });
   next();
 });
 
-// Soft Delete Instance Method
+// ─── Instance Methods ────────────────────────────────────────────────────────
 workspaceSchema.methods.softDelete = async function (userId: string): Promise<void> {
   this.deletedAt = new Date();
   this.updatedBy = userId;

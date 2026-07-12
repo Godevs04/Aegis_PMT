@@ -1,12 +1,16 @@
 import crypto from 'crypto';
 import WorkspaceRepository from './workspace.repository';
 import AppError from '../../shared/utils/appError';
-import { IWorkspace, Workspace } from './workspace.model';
+import { IWorkspace } from './workspace.model';
 import { IInvitation } from './invitation.model';
-import { UserRole } from '../../config/roles';
 import { sendEmail } from '../../emails/mail.service';
 import User from '../users/user.model';
 import ActivityService from '../activities/activity.service';
+import { WorkspaceMember } from '../members/workspace-member.model';
+import { Role } from '../roles/role.model';
+import { SystemRole } from '../../config/permissions';
+import { auditLogService } from '../audit-logs/audit-log.service';
+import { seedWorkspaceDefaults } from '../task-statuses/seed-defaults';
 
 export class WorkspaceService {
   private repository: WorkspaceRepository;
@@ -15,6 +19,18 @@ export class WorkspaceService {
   constructor() {
     this.repository = new WorkspaceRepository();
     this.activityService = new ActivityService();
+  }
+
+  /**
+   * Helper: Check if user is a member of the workspace
+   */
+  private async checkMembership(workspaceId: string, userId: string): Promise<boolean> {
+    const member = await WorkspaceMember.findOne({
+      workspaceId,
+      userId,
+      status: 'active',
+    });
+    return !!member;
   }
 
   /**
@@ -39,21 +55,41 @@ export class WorkspaceService {
     const workspace = await this.repository.createWorkspace({
       name,
       organizationId: organization.id,
-      members: [
-        {
-          userId: userId as any,
-          role: UserRole.ORG_OWNER, // Workspace creator defaults to Owner
-          joinedAt: new Date(),
-        },
-      ],
       createdBy: userId as any,
     });
+
+    // 3. Add creator as WorkspaceMember with Workspace Admin role
+    const adminRole = await Role.findOne({ slug: SystemRole.WORKSPACE_ADMIN, isSystem: true });
+    if (adminRole) {
+      await WorkspaceMember.create({
+        userId,
+        workspaceId: workspace.id,
+        roleId: adminRole.id,
+        status: 'active',
+        joinedAt: new Date(),
+        createdBy: userId,
+      });
+    }
+
+    // 4. Seed default task statuses and priorities
+    await seedWorkspaceDefaults(workspace.id, userId);
 
     await this.activityService.logActivity({
       workspaceId: workspace.id,
       userId: userId as any,
       action: 'WORKSPACE_CREATED',
       details: { name: workspace.name },
+    });
+
+    // Audit log
+    auditLogService.log({
+      workspaceId: workspace.id,
+      entityType: 'Workspace',
+      entityId: workspace.id,
+      action: 'CREATE',
+      performedBy: userId,
+      newValues: { name: workspace.name },
+      metadata: { name: workspace.name, organizationId: organization.id },
     });
 
     return workspace;
@@ -73,17 +109,15 @@ export class WorkspaceService {
     workspaceId: string,
     invitedByUserId: string,
     email: string,
-    role: UserRole
+    roleSlug: string
   ): Promise<IInvitation> {
     const workspace = await this.repository.findWorkspaceById(workspaceId);
     if (!workspace) {
       throw new AppError('Workspace not found.', 404);
     }
 
-    // Check if the user is already a member
-    const isMember = workspace.members.some(
-      (m) => m.userId.toString() === invitedByUserId
-    );
+    // Check if the inviter is a member
+    const isMember = await this.checkMembership(workspaceId, invitedByUserId);
     if (!isMember) {
       throw new AppError('You must be a member of this workspace to invite others.', 403);
     }
@@ -91,9 +125,7 @@ export class WorkspaceService {
     // Check if target email is already a member of workspace
     const targetUser = await User.findOne({ email });
     if (targetUser) {
-      const isAlreadyIn = workspace.members.some(
-        (m) => m.userId.toString() === targetUser.id
-      );
+      const isAlreadyIn = await this.checkMembership(workspaceId, targetUser.id);
       if (isAlreadyIn) {
         throw new AppError('User is already a member of this workspace.', 400);
       }
@@ -107,7 +139,7 @@ export class WorkspaceService {
       email,
       workspaceId: workspaceId as any,
       invitedBy: invitedByUserId as any,
-      role,
+      role: roleSlug as any,
       token,
       status: 'pending',
       expiresAt,
@@ -117,11 +149,11 @@ export class WorkspaceService {
     // Send email with invitation link
     const inviteUrl = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/invite/accept?token=${token}`;
     const subject = `Join ${workspace.name} Workspace - Aegis`;
-    const text = `You have been invited to join the ${workspace.name} workspace on Aegis as a ${role}. Click here: ${inviteUrl}`;
+    const text = `You have been invited to join the ${workspace.name} workspace on Aegis as a ${roleSlug}. Click here: ${inviteUrl}`;
     const html = `
       <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e2e8f0; border-radius: 8px;">
         <h2 style="color: #0f172a; margin-bottom: 16px;">Workspace Invitation</h2>
-        <p style="color: #475569; font-size: 16px; line-height: 24px;">You have been invited to join the <strong>${workspace.name}</strong> workspace on Aegis as a <strong>${role}</strong>.</p>
+        <p style="color: #475569; font-size: 16px; line-height: 24px;">You have been invited to join the <strong>${workspace.name}</strong> workspace on Aegis.</p>
         <div style="margin: 24px 0;">
           <a href="${inviteUrl}" style="background-color: #2563eb; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: 500; display: inline-block;">Accept Invitation</a>
         </div>
@@ -158,17 +190,25 @@ export class WorkspaceService {
       throw new AppError('Authenticated email does not match invitation email.', 400);
     }
 
-    // Add user as member to workspace
-    const isAlreadyMember = workspace.members.some(
-      (m) => m.userId.toString() === userId
-    );
+    // Add user as WorkspaceMember if not already a member
+    const isAlreadyMember = await this.checkMembership(workspace.id, userId);
     if (!isAlreadyMember) {
-      workspace.members.push({
-        userId: userId as any,
-        role: invitation.role,
-        joinedAt: new Date(),
-      });
-      await this.repository.saveWorkspace(workspace);
+      // Resolve the role from invitation (stored as slug)
+      const role = await Role.findOne({ slug: invitation.role, isSystem: true });
+      const defaultRole = await Role.findOne({ slug: SystemRole.DEVELOPER, isSystem: true });
+      const resolvedRole = role || defaultRole;
+
+      if (resolvedRole) {
+        await WorkspaceMember.create({
+          userId,
+          workspaceId: workspace.id,
+          roleId: resolvedRole.id,
+          status: 'active',
+          joinedAt: new Date(),
+          invitedBy: invitation.invitedBy,
+          createdBy: userId,
+        });
+      }
     }
 
     // Update invitation status
@@ -179,7 +219,7 @@ export class WorkspaceService {
       workspaceId: workspace.id,
       userId: userId as any,
       action: 'MEMBER_JOINED',
-      details: { email: user.email, role: invitation.role, workspaceName: workspace.name },
+      details: { email: user.email, workspaceName: workspace.name },
     });
 
     return workspace;
@@ -194,16 +234,20 @@ export class WorkspaceService {
       throw new AppError('Workspace not found.', 404);
     }
 
-    const isMember = workspace.members.some((m) => m.userId.toString() === userId);
+    const isMember = await this.checkMembership(workspaceId, userId);
     if (!isMember) {
       throw new AppError('Access denied. You are not a member of this workspace.', 403);
     }
 
-    // Populate user profile info for members
-    const populatedWorkspace = await Workspace.findById(workspaceId)
-      .populate('members.userId', 'name email avatarUrl');
+    // Get all members with populated user and role info
+    const members = await WorkspaceMember.find({
+      workspaceId,
+      status: 'active',
+    })
+      .populate('userId', 'name email avatarUrl')
+      .populate('roleId', 'name slug');
 
-    return populatedWorkspace?.members || [];
+    return members;
   }
 }
 

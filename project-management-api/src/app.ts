@@ -14,6 +14,11 @@ import projectRoutes from './modules/projects/project.routes';
 import taskRoutes from './modules/tasks/task.routes';
 import activityRoutes from './modules/activities/activity.routes';
 import notificationRoutes from './modules/notifications/notification.routes';
+import roleRoutes from './modules/roles/role.routes';
+import auditLogRoutes from './modules/audit-logs/audit-log.routes';
+import taskStatusRoutes from './modules/task-statuses/task-status.routes';
+import taskPriorityRoutes from './modules/task-priorities/task-priority.routes';
+import attachmentRoutes from './modules/attachments/attachment.routes';
 
 const app: Application = express();
 
@@ -70,6 +75,11 @@ app.use('/api/projects', projectRoutes);
 app.use('/api/tasks', taskRoutes);
 app.use('/api/activities', activityRoutes);
 app.use('/api/notifications', notificationRoutes);
+app.use('/api/roles', roleRoutes);
+app.use('/api/audit-logs', auditLogRoutes);
+app.use('/api/workspaces/:workspaceId/statuses', taskStatusRoutes);
+app.use('/api/workspaces/:workspaceId/priorities', taskPriorityRoutes);
+app.use('/api/attachments', attachmentRoutes);
 
 // Health Check
 app.get('/health', (_req: Request, res: Response) => {

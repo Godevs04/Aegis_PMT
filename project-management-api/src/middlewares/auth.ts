@@ -6,7 +6,7 @@ import { UserRole, Permission, ROLE_PERMISSIONS } from '../config/roles';
 
 interface TokenPayload {
   userId: string;
-  role: string;
+  role?: string;
   tokenVersion: number;
 }
 
@@ -66,7 +66,10 @@ export const protect = async (
 };
 
 /**
- * Middleware: Restrict access to specific roles
+ * @deprecated Use the new `authorize` middleware from Task 2 (permission.service.ts) instead.
+ * Kept temporarily for backward compatibility during migration.
+ *
+ * Middleware: Restrict access to specific roles (legacy — uses User.role field)
  */
 export const restrictTo = (...roles: UserRole[]) => {
   return (req: Request, _res: Response, next: NextFunction): void => {
@@ -74,7 +77,8 @@ export const restrictTo = (...roles: UserRole[]) => {
       return next(new AppError('Authentication required.', 401));
     }
 
-    if (!roles.includes(req.user.role)) {
+    const userRole = req.user.role as UserRole | undefined;
+    if (!userRole || !roles.includes(userRole)) {
       return next(new AppError('You do not have permission to perform this action.', 403));
     }
 
@@ -83,7 +87,10 @@ export const restrictTo = (...roles: UserRole[]) => {
 };
 
 /**
- * Middleware: Require specific permission based on Role Permissions configuration
+ * @deprecated Use the new `authorize` middleware from Task 2 (permission.service.ts) instead.
+ * Kept temporarily for backward compatibility during migration.
+ *
+ * Middleware: Require specific permission based on Role Permissions configuration (legacy)
  */
 export const requirePermission = (permission: Permission) => {
   return (req: Request, _res: Response, next: NextFunction): void => {
@@ -91,7 +98,12 @@ export const requirePermission = (permission: Permission) => {
       return next(new AppError('Authentication required.', 401));
     }
 
-    const userPermissions = ROLE_PERMISSIONS[req.user.role] || [];
+    const userRole = req.user.role as UserRole | undefined;
+    if (!userRole) {
+      return next(new AppError('You do not have the required permissions for this resource.', 403));
+    }
+
+    const userPermissions = ROLE_PERMISSIONS[userRole] || [];
     if (!userPermissions.includes(permission)) {
       return next(new AppError('You do not have the required permissions for this resource.', 403));
     }

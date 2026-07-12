@@ -3,6 +3,11 @@ import Workspace from '../workspaces/workspace.model';
 import AppError from '../../shared/utils/appError';
 import { IProject } from './project.model';
 import ActivityService from '../activities/activity.service';
+import { WorkspaceMember } from '../members/workspace-member.model';
+import { auditLogService } from '../audit-logs/audit-log.service';
+import { snapshot } from '../../shared/utils/diff';
+
+const PROJECT_AUDIT_FIELDS = ['name', 'description', 'status'];
 
 export class ProjectService {
   private repository: ProjectRepository;
@@ -22,8 +27,12 @@ export class ProjectService {
       throw new AppError('Workspace not found.', 404);
     }
 
-    const isMember = workspace.members.some((m) => m.userId.toString() === userId);
-    if (!isMember) {
+    const member = await WorkspaceMember.findOne({
+      workspaceId,
+      userId,
+      status: 'active',
+    });
+    if (!member) {
       throw new AppError('Access denied. You are not a member of this workspace.', 403);
     }
   }
@@ -44,6 +53,18 @@ export class ProjectService {
       description,
       workspaceId: workspaceId as any,
       createdBy: userId as any,
+    });
+
+    // Audit log
+    auditLogService.log({
+      workspaceId,
+      projectId: project.id,
+      entityType: 'Project',
+      entityId: project.id,
+      action: 'CREATE',
+      performedBy: userId,
+      newValues: { name: project.name, description: project.description, status: project.status },
+      metadata: { name: project.name },
     });
 
     await this.activityService.logActivity({
@@ -81,10 +102,31 @@ export class ProjectService {
 
     await this.checkWorkspaceMembership(project.workspaceId.toString(), userId);
 
+    // Capture previous values for audit
+    const previousValues = snapshot(project.toObject(), PROJECT_AUDIT_FIELDS);
+
     Object.assign(project, updateData);
     project.updatedBy = userId as any;
 
-    return this.repository.saveProject(project);
+    const updatedProject = await this.repository.saveProject(project);
+
+    // Capture new values for audit
+    const newValues = snapshot(updatedProject.toObject(), PROJECT_AUDIT_FIELDS);
+
+    // Audit log
+    auditLogService.log({
+      workspaceId: updatedProject.workspaceId.toString(),
+      projectId: updatedProject.id,
+      entityType: 'Project',
+      entityId: updatedProject.id,
+      action: 'UPDATE',
+      performedBy: userId,
+      previousValues,
+      newValues,
+      metadata: { name: updatedProject.name },
+    });
+
+    return updatedProject;
   }
 
   /**
@@ -97,6 +139,18 @@ export class ProjectService {
     }
 
     await this.checkWorkspaceMembership(project.workspaceId.toString(), userId);
+
+    // Audit log before deletion
+    auditLogService.log({
+      workspaceId: project.workspaceId.toString(),
+      projectId: project.id,
+      entityType: 'Project',
+      entityId: project.id,
+      action: 'DELETE',
+      performedBy: userId,
+      previousValues: { name: project.name, status: project.status },
+      metadata: { name: project.name },
+    });
 
     await project.softDelete(userId);
   }

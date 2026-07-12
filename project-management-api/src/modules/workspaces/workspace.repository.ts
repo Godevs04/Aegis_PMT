@@ -1,6 +1,7 @@
 import { Workspace, IWorkspace } from './workspace.model';
 import { Organization, IOrganization } from '../organizations/organization.model';
 import { Invitation, IInvitation } from './invitation.model';
+import { WorkspaceMember } from '../members/workspace-member.model';
 
 export class WorkspaceRepository {
   /**
@@ -11,10 +12,21 @@ export class WorkspaceRepository {
   }
 
   /**
-   * Find workspaces belonging to a specific user (where user is in members list).
+   * Find workspaces belonging to a specific user (via WorkspaceMember collection).
    */
   async findWorkspacesByUser(userId: string): Promise<IWorkspace[]> {
-    return Workspace.find({ 'members.userId': userId }).populate('organizationId', 'name');
+    // Get all workspace IDs where the user is an active member
+    const memberships = await WorkspaceMember.find({
+      userId,
+      status: 'active',
+    }).select('workspaceId');
+
+    const workspaceIds = memberships.map((m) => m.workspaceId);
+
+    return Workspace.find({ _id: { $in: workspaceIds } }).populate(
+      'organizationId',
+      'name'
+    );
   }
 
   /**
