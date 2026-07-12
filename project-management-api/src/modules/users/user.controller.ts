@@ -4,6 +4,7 @@ import AppError from '../../shared/utils/appError';
 import sendResponse from '../../shared/utils/response';
 import { uploadToCloudinary } from '../../services/upload.service';
 import User from './user.model';
+import { OrganizationMember } from '../members/organization-member.model';
 
 const userRepository = new UserRepository();
 
@@ -28,6 +29,12 @@ export class UserController {
           email: req.user.email,
           role: req.user.role,
           avatarUrl: req.user.avatarUrl,
+          bio: req.user.bio,
+          timezone: req.user.timezone,
+          language: req.user.language,
+          theme: req.user.theme,
+          isOnboardingComplete: req.user.isOnboardingComplete,
+          onboardingStep: req.user.onboardingStep,
         },
       });
     } catch (error) {
@@ -163,6 +170,98 @@ export class UserController {
         statusCode: 200,
         success: true,
         message: 'Your account has been deleted successfully.',
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
+   * GET /users/onboarding-status
+   * Returns the user's onboarding state and what step they're on.
+   */
+  async getOnboardingStatus(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      if (!req.user) throw new AppError('Authentication required.', 401);
+
+      // Check if user has any organization memberships
+      const orgMemberships = await OrganizationMember.find({
+        userId: req.user.id,
+        status: 'active',
+      }).select('organizationId');
+
+      const hasOrganization = orgMemberships.length > 0;
+
+      sendResponse({
+        res,
+        statusCode: 200,
+        success: true,
+        message: 'Onboarding status retrieved successfully.',
+        data: {
+          isOnboardingComplete: req.user.isOnboardingComplete,
+          onboardingStep: req.user.onboardingStep || 0,
+          hasOrganization,
+          profile: {
+            name: req.user.name,
+            bio: req.user.bio,
+            avatarUrl: req.user.avatarUrl,
+            timezone: req.user.timezone,
+          },
+        },
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
+   * POST /users/complete-profile
+   * Complete the user profile during onboarding.
+   * Accepts: name, bio, timezone, language, avatar (file)
+   * Sets isOnboardingComplete = true
+   */
+  async completeProfile(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const user = req.user;
+      if (!user) throw new AppError('Authentication required.', 401);
+
+      const { name, bio, timezone, language } = req.body;
+
+      if (name) user.name = name;
+      if (bio !== undefined) user.bio = bio;
+      if (timezone) user.timezone = timezone;
+      if (language) user.language = language;
+
+      // Handle avatar upload
+      if (req.file) {
+        const folder = `aegis/avatars/${user.id}`;
+        const avatarUrl = await uploadToCloudinary(req.file.buffer, folder);
+        user.avatarUrl = avatarUrl;
+      }
+
+      // Mark onboarding profile step as complete
+      user.isOnboardingComplete = true;
+      user.onboardingStep = 1;
+
+      await userRepository.save(user);
+
+      sendResponse({
+        res,
+        statusCode: 200,
+        success: true,
+        message: 'Profile completed successfully.',
+        data: {
+          id: user.id,
+          name: user.name,
+          email: user.email,
+          avatarUrl: user.avatarUrl,
+          bio: user.bio,
+          timezone: user.timezone,
+          language: user.language,
+          theme: user.theme,
+          isOnboardingComplete: user.isOnboardingComplete,
+          onboardingStep: user.onboardingStep,
+        },
       });
     } catch (error) {
       next(error);

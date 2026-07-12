@@ -19,6 +19,7 @@ import auditLogRoutes from './modules/audit-logs/audit-log.routes';
 import taskStatusRoutes from './modules/task-statuses/task-status.routes';
 import taskPriorityRoutes from './modules/task-priorities/task-priority.routes';
 import attachmentRoutes from './modules/attachments/attachment.routes';
+import organizationRoutes from './modules/organizations/organization.routes';
 
 const app: Application = express();
 
@@ -80,6 +81,7 @@ app.use('/api/audit-logs', auditLogRoutes);
 app.use('/api/workspaces/:workspaceId/statuses', taskStatusRoutes);
 app.use('/api/workspaces/:workspaceId/priorities', taskPriorityRoutes);
 app.use('/api/attachments', attachmentRoutes);
+app.use('/api/organizations', organizationRoutes);
 
 // Health Check
 app.get('/health', (_req: Request, res: Response) => {
