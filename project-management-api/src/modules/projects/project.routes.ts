@@ -14,6 +14,7 @@ import {
   getProjectsSchema,
   updateProjectSchema,
   deleteProjectSchema,
+  addProjectMemberSchema,
 } from './project.validation';
 
 const router = Router();
@@ -30,7 +31,7 @@ router.post(
   controller.createProject
 );
 
-// List projects — requires workspace membership (any member can list)
+// List projects — requires workspace membership
 router.get(
   '/',
   validate(getProjectsSchema),
@@ -38,18 +39,27 @@ router.get(
   controller.getWorkspaceProjects
 );
 
-// Update project — permission check handled in service (loads project → resolves workspaceId → checks membership)
-router.patch(
-  '/:projectId',
-  validate(updateProjectSchema),
-  controller.updateProject
-);
+// Get single project — membership checked in service
+router.get('/:projectId', controller.getProject);
 
-// Delete project — permission check handled in service (loads project → resolves workspaceId → checks membership)
-router.delete(
-  '/:projectId',
-  validate(deleteProjectSchema),
-  controller.deleteProject
-);
+// Update project — membership checked in service
+router.patch('/:projectId', validate(updateProjectSchema), controller.updateProject);
+
+// Archive project
+router.post('/:projectId/archive', controller.archiveProject);
+
+// Restore project
+router.post('/:projectId/restore', controller.restoreProject);
+
+// Delete project
+router.delete('/:projectId', validate(deleteProjectSchema), controller.deleteProject);
+
+// Project analytics
+router.get('/:projectId/analytics', controller.getAnalytics);
+
+// Project members
+router.get('/:projectId/members', controller.getMembers);
+router.post('/:projectId/members', validate(addProjectMemberSchema), controller.addMember);
+router.delete('/:projectId/members/:userId', controller.removeMember);
 
 export default router;

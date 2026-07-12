@@ -13,7 +13,9 @@ import {
   createTaskSchema,
   getTasksSchema,
   updateTaskSchema,
-  commentTaskSchema,
+  logTimeSchema,
+  bulkUpdateSchema,
+  moveTaskSchema,
   deleteTaskSchema,
 } from './task.validation';
 
@@ -23,7 +25,7 @@ const controller = new TaskController();
 // All task routes require authentication
 router.use(protect);
 
-// Create task — requires task:create permission in the workspace
+// Create task — requires task:create permission in workspace
 router.post(
   '/',
   validate(createTaskSchema),
@@ -36,28 +38,28 @@ router.get(
   '/',
   validate(getTasksSchema),
   requireWorkspaceMember(workspaceFromQuery),
-  controller.getWorkspaceTasks
+  controller.getTasks
 );
 
-// Update task — service resolves workspaceId from task, checks membership
-router.patch(
-  '/:taskId',
-  validate(updateTaskSchema),
-  controller.updateTask
-);
+// Bulk update — membership checked in service
+router.post('/bulk', validate(bulkUpdateSchema), controller.bulkUpdate);
 
-// Add comment — service resolves workspaceId from task, checks membership
-router.post(
-  '/:taskId/comments',
-  validate(commentTaskSchema),
-  controller.addTaskComment
-);
+// Get single task — membership checked in service
+router.get('/:taskId', controller.getTask);
 
-// Delete task — service resolves workspaceId from task, checks membership
-router.delete(
-  '/:taskId',
-  validate(deleteTaskSchema),
-  controller.deleteTask
-);
+// Update task — membership checked in service
+router.patch('/:taskId', validate(updateTaskSchema), controller.updateTask);
+
+// Move task (Kanban drag) — membership checked in service
+router.patch('/:taskId/move', validate(moveTaskSchema), controller.moveTask);
+
+// Log time — membership checked in service
+router.post('/:taskId/time', validate(logTimeSchema), controller.logTime);
+
+// Get subtasks — membership checked in service
+router.get('/:taskId/subtasks', controller.getSubtasks);
+
+// Delete task — membership checked in service
+router.delete('/:taskId', validate(deleteTaskSchema), controller.deleteTask);
 
 export default router;

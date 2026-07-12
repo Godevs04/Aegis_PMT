@@ -20,6 +20,8 @@ import taskStatusRoutes from './modules/task-statuses/task-status.routes';
 import taskPriorityRoutes from './modules/task-priorities/task-priority.routes';
 import attachmentRoutes from './modules/attachments/attachment.routes';
 import organizationRoutes from './modules/organizations/organization.routes';
+import commentRoutes, { commentStandaloneRoutes } from './modules/comments/comment.routes';
+import teamRoutes from './modules/teams/team.routes';
 
 const app: Application = express();
 
@@ -82,6 +84,9 @@ app.use('/api/workspaces/:workspaceId/statuses', taskStatusRoutes);
 app.use('/api/workspaces/:workspaceId/priorities', taskPriorityRoutes);
 app.use('/api/attachments', attachmentRoutes);
 app.use('/api/organizations', organizationRoutes);
+app.use('/api/tasks/:taskId/comments', commentRoutes);
+app.use('/api/comments', commentStandaloneRoutes());
+app.use('/api/teams', teamRoutes);
 
 // Health Check
 app.get('/health', (_req: Request, res: Response) => {

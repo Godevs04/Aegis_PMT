@@ -1,11 +1,27 @@
 import { Schema, model, Document } from 'mongoose';
 
+export type ProjectStatus = 'planning' | 'active' | 'paused' | 'completed' | 'archived';
+
+export interface IProjectSettings {
+  defaultStatusId?: Schema.Types.ObjectId;
+  defaultPriorityId?: Schema.Types.ObjectId;
+  enableSprints: boolean;
+  enableMilestones: boolean;
+}
+
 export interface IProject extends Document {
   name: string;
+  prefix: string; // e.g., "ENG" — used for task IDs like ENG-123
   description?: string;
+  coverImage?: string;
   workspaceId: Schema.Types.ObjectId;
-  status: 'active' | 'archived';
-  
+  status: ProjectStatus;
+  startDate?: Date;
+  endDate?: Date;
+  progress: number; // 0-100 percentage (auto-calculated from tasks)
+  tags: string[];
+  settings: IProjectSettings;
+
   // Auditor fields
   createdAt: Date;
   updatedAt: Date;
@@ -25,10 +41,22 @@ const projectSchema = new Schema<IProject>(
       trim: true,
       maxlength: [100, 'Project name cannot exceed 100 characters'],
     },
+    prefix: {
+      type: String,
+      required: [true, 'Project prefix is required'],
+      trim: true,
+      uppercase: true,
+      maxlength: [6, 'Prefix cannot exceed 6 characters'],
+      match: [/^[A-Z0-9]+$/, 'Prefix must contain only uppercase letters and numbers'],
+    },
     description: {
       type: String,
       trim: true,
-      maxlength: [500, 'Description cannot exceed 500 characters'],
+      maxlength: [2000, 'Description cannot exceed 2000 characters'],
+    },
+    coverImage: {
+      type: String,
+      default: '',
     },
     workspaceId: {
       type: Schema.Types.ObjectId,
@@ -37,8 +65,46 @@ const projectSchema = new Schema<IProject>(
     },
     status: {
       type: String,
-      enum: ['active', 'archived'],
+      enum: ['planning', 'active', 'paused', 'completed', 'archived'],
       default: 'active',
+    },
+    startDate: {
+      type: Date,
+      default: null,
+    },
+    endDate: {
+      type: Date,
+      default: null,
+    },
+    progress: {
+      type: Number,
+      default: 0,
+      min: 0,
+      max: 100,
+    },
+    tags: {
+      type: [String],
+      default: [],
+    },
+    settings: {
+      defaultStatusId: {
+        type: Schema.Types.ObjectId,
+        ref: 'TaskStatus',
+        default: null,
+      },
+      defaultPriorityId: {
+        type: Schema.Types.ObjectId,
+        ref: 'TaskPriority',
+        default: null,
+      },
+      enableSprints: {
+        type: Boolean,
+        default: true,
+      },
+      enableMilestones: {
+        type: Boolean,
+        default: true,
+      },
     },
     deletedAt: {
       type: Date,
@@ -58,17 +124,22 @@ const projectSchema = new Schema<IProject>(
   }
 );
 
-// Indexes
-projectSchema.index({ workspaceId: 1 });
+// ─── Indexes ─────────────────────────────────────────────────────────────────
+projectSchema.index({ workspaceId: 1, status: 1 });
+projectSchema.index(
+  { workspaceId: 1, prefix: 1 },
+  { unique: true, partialFilterExpression: { deletedAt: null } }
+);
 projectSchema.index({ deletedAt: 1 });
+projectSchema.index({ tags: 1 });
 
-// Query middleware: Exclude soft deleted records
+// ─── Query Middleware: Exclude soft-deleted records ───────────────────────────
 projectSchema.pre(/^find/, function (this: any, next) {
   this.where({ deletedAt: null });
   next();
 });
 
-// Soft Delete Instance Method
+// ─── Instance Methods ────────────────────────────────────────────────────────
 projectSchema.methods.softDelete = async function (userId: string): Promise<void> {
   this.deletedAt = new Date();
   this.updatedBy = userId;
