@@ -1,15 +1,61 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import taskService, { Task } from '../services/task-service';
+import taskService, { TaskFilters, CreateTaskData, Task } from '../services/task-service';
 
 export const TASKS_QUERY_KEY = 'tasks';
+export const STATUSES_QUERY_KEY = 'task-statuses';
+export const PRIORITIES_QUERY_KEY = 'task-priorities';
 
 /**
- * Hook to retrieve all tasks in a workspace
+ * Hook to fetch tasks with filters
  */
-export function useTasksQuery(workspaceId: string | null) {
+export function useTasksQuery(filters: TaskFilters | null) {
   return useQuery({
-    queryKey: [TASKS_QUERY_KEY, workspaceId],
-    queryFn: () => taskService.getWorkspaceTasks(workspaceId || ''),
+    queryKey: [TASKS_QUERY_KEY, filters],
+    queryFn: () => taskService.getTasks(filters!),
+    enabled: !!filters?.workspaceId,
+  });
+}
+
+/**
+ * Hook to fetch a single task
+ */
+export function useTaskQuery(taskId: string | null) {
+  return useQuery({
+    queryKey: [TASKS_QUERY_KEY, 'detail', taskId],
+    queryFn: () => taskService.getTask(taskId!),
+    enabled: !!taskId,
+  });
+}
+
+/**
+ * Hook to fetch subtasks
+ */
+export function useSubtasksQuery(parentTaskId: string | null) {
+  return useQuery({
+    queryKey: [TASKS_QUERY_KEY, 'subtasks', parentTaskId],
+    queryFn: () => taskService.getSubtasks(parentTaskId!),
+    enabled: !!parentTaskId,
+  });
+}
+
+/**
+ * Hook to fetch workspace task statuses
+ */
+export function useStatusesQuery(workspaceId: string | null) {
+  return useQuery({
+    queryKey: [STATUSES_QUERY_KEY, workspaceId],
+    queryFn: () => taskService.getStatuses(workspaceId!),
+    enabled: !!workspaceId,
+  });
+}
+
+/**
+ * Hook to fetch workspace task priorities
+ */
+export function usePrioritiesQuery(workspaceId: string | null) {
+  return useQuery({
+    queryKey: [PRIORITIES_QUERY_KEY, workspaceId],
+    queryFn: () => taskService.getPriorities(workspaceId!),
     enabled: !!workspaceId,
   });
 }
@@ -21,20 +67,9 @@ export function useCreateTaskMutation() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (taskData: {
-      title: string;
-      description?: string;
-      projectId: string;
-      workspaceId: string;
-      assigneeId?: string;
-      status?: string;
-      priority?: string;
-      dueDate?: string;
-    }) => taskService.createTask(taskData),
-    onSuccess: (newTask) => {
-      queryClient.invalidateQueries({
-        queryKey: [TASKS_QUERY_KEY, newTask.workspaceId],
-      });
+    mutationFn: (data: CreateTaskData) => taskService.createTask(data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [TASKS_QUERY_KEY] });
     },
   });
 }
@@ -46,19 +81,40 @@ export function useUpdateTaskMutation() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: ({
-      taskId,
-      updateData,
-    }: {
-      taskId: string;
-      updateData: Partial<
-        Pick<Task, 'title' | 'description' | 'status' | 'priority' | 'dueDate' | 'checklist'>
-      > & { assigneeId?: string | null; projectId?: string };
-    }) => taskService.updateTask(taskId, updateData),
-    onSuccess: (updatedTask) => {
-      queryClient.invalidateQueries({
-        queryKey: [TASKS_QUERY_KEY, updatedTask.workspaceId],
-      });
+    mutationFn: ({ taskId, data }: { taskId: string; data: Partial<Task> }) =>
+      taskService.updateTask(taskId, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [TASKS_QUERY_KEY] });
+    },
+  });
+}
+
+/**
+ * Hook to move a task (Kanban drag)
+ */
+export function useMoveTaskMutation() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ taskId, statusId, order }: { taskId: string; statusId?: string; order: number }) =>
+      taskService.moveTask(taskId, { statusId, order }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [TASKS_QUERY_KEY] });
+    },
+  });
+}
+
+/**
+ * Hook to bulk update tasks
+ */
+export function useBulkUpdateMutation() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (data: { taskIds: string[]; statusId?: string; priorityId?: string; assignees?: string[] }) =>
+      taskService.bulkUpdate(data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [TASKS_QUERY_KEY] });
     },
   });
 }
@@ -66,34 +122,13 @@ export function useUpdateTaskMutation() {
 /**
  * Hook to delete a task
  */
-export function useDeleteTaskMutation(workspaceId: string | null) {
+export function useDeleteTaskMutation() {
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: (taskId: string) => taskService.deleteTask(taskId),
     onSuccess: () => {
-      if (workspaceId) {
-        queryClient.invalidateQueries({
-          queryKey: [TASKS_QUERY_KEY, workspaceId],
-        });
-      }
-    },
-  });
-}
-
-/**
- * Hook to add a task comment
- */
-export function useAddCommentMutation() {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: ({ taskId, content }: { taskId: string; content: string }) =>
-      taskService.addTaskComment(taskId, content),
-    onSuccess: (updatedTask) => {
-      queryClient.invalidateQueries({
-        queryKey: [TASKS_QUERY_KEY, updatedTask.workspaceId],
-      });
+      queryClient.invalidateQueries({ queryKey: [TASKS_QUERY_KEY] });
     },
   });
 }

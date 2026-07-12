@@ -1,95 +1,175 @@
 import apiClient from './api-client';
 
-export interface ChecklistItem {
-  _id?: string;
-  title: string;
-  isCompleted: boolean;
-}
-
-export interface TaskComment {
-  _id?: string;
-  userId: {
-    _id: string;
-    name: string;
-    avatarUrl?: string;
-  };
-  content: string;
-  createdAt: string;
-}
-
-export interface TaskAttachment {
+export interface TaskStatus {
+  _id: string;
   name: string;
-  url: string;
+  slug: string;
+  color: string;
+  icon?: string;
+  category: 'backlog' | 'unstarted' | 'active' | 'done' | 'cancelled';
+  order: number;
+}
+
+export interface TaskPriority {
+  _id: string;
+  name: string;
+  slug: string;
+  color: string;
+  icon: string;
+  order: number;
+}
+
+export interface TaskLabel {
+  _id: string;
+  name: string;
+  color: string;
+}
+
+export interface TaskUser {
+  _id: string;
+  name: string;
+  email?: string;
+  avatarUrl?: string;
 }
 
 export interface Task {
   _id: string;
+  taskNumber: number;
   title: string;
-  description?: string;
-  projectId: {
-    _id: string;
-    name: string;
-  };
+  description?: any;
+  projectId: string | { _id: string; name: string };
   workspaceId: string;
-  assigneeId?: {
-    _id: string;
-    name: string;
-    email: string;
-    avatarUrl?: string;
-  };
-  status: 'todo' | 'in_progress' | 'review' | 'done';
-  priority: 'low' | 'medium' | 'high' | 'urgent';
+  parentTaskId?: string;
+  sprintId?: string;
+  milestoneId?: string;
+  assignees: TaskUser[];
+  reporter?: TaskUser;
+  watchers?: TaskUser[];
+  statusId?: TaskStatus | string;
+  priorityId?: TaskPriority | string;
+  labels: TaskLabel[];
+  tags: string[];
+  startDate?: string;
   dueDate?: string;
-  checklist: ChecklistItem[];
-  comments: TaskComment[];
-  attachments: TaskAttachment[];
+  completedAt?: string;
+  estimatedHours?: number;
+  spentHours?: number;
+  order: number;
   createdAt: string;
+  updatedAt: string;
+  createdBy?: { _id: string; name: string };
+}
+
+export interface CreateTaskData {
+  title: string;
+  description?: any;
+  projectId: string;
+  workspaceId: string;
+  assignees?: string[];
+  statusId?: string;
+  priorityId?: string;
+  labels?: string[];
+  parentTaskId?: string;
+  sprintId?: string;
+  dueDate?: string;
+  estimatedHours?: number;
+}
+
+export interface TaskFilters {
+  workspaceId: string;
+  projectId?: string;
+  statusId?: string;
+  priorityId?: string;
+  assignee?: string;
+  labels?: string;
+  sprintId?: string;
+  parentTaskId?: string;
+  search?: string;
+  page?: number;
+  limit?: number;
+  sortBy?: string;
+  sortOrder?: 'asc' | 'desc';
+}
+
+export interface PaginatedTasks {
+  data: Task[];
+  meta: { page: number; limit: number; total: number; totalPages: number };
 }
 
 export const taskService = {
   /**
-   * Fetch all tasks in a workspace
+   * Fetch tasks with filters and pagination
    */
-  async getWorkspaceTasks(workspaceId: string): Promise<Task[]> {
-    const response = await apiClient.get(`/tasks?workspaceId=${workspaceId}`);
+  async getTasks(filters: TaskFilters): Promise<PaginatedTasks> {
+    const params = new URLSearchParams();
+    Object.entries(filters).forEach(([key, value]) => {
+      if (value !== undefined && value !== null && value !== '') {
+        params.append(key, String(value));
+      }
+    });
+    const response = await apiClient.get(`/tasks?${params.toString()}`);
+    return { data: response.data.data, meta: response.data.meta };
+  },
+
+  /**
+   * Get single task by ID
+   */
+  async getTask(taskId: string): Promise<Task> {
+    const response = await apiClient.get(`/tasks/${taskId}`);
     return response.data.data;
   },
 
   /**
    * Create a new task
    */
-  async createTask(taskData: {
-    title: string;
-    description?: string;
-    projectId: string;
-    workspaceId: string;
-    assigneeId?: string;
-    status?: string;
-    priority?: string;
-    dueDate?: string;
-  }): Promise<Task> {
-    const response = await apiClient.post('/tasks', taskData);
+  async createTask(data: CreateTaskData): Promise<Task> {
+    const response = await apiClient.post('/tasks', data);
     return response.data.data;
   },
 
   /**
-   * Update task details (e.g. status, assignee, priority)
+   * Update task
    */
-  async updateTask(
-    taskId: string,
-    updateData: Partial<
-      Pick<Task, 'title' | 'description' | 'status' | 'priority' | 'dueDate' | 'checklist'>
-    > & { assigneeId?: string | null; projectId?: string }
-  ): Promise<Task> {
-    const response = await apiClient.patch(`/tasks/${taskId}`, updateData);
+  async updateTask(taskId: string, data: Partial<Task>): Promise<Task> {
+    const response = await apiClient.patch(`/tasks/${taskId}`, data);
     return response.data.data;
   },
 
   /**
-   * Add a comment to a task
+   * Move task (Kanban drag — change status and/or order)
    */
-  async addTaskComment(taskId: string, content: string): Promise<Task> {
-    const response = await apiClient.post(`/tasks/${taskId}/comments`, { content });
+  async moveTask(taskId: string, data: { statusId?: string; order: number }): Promise<Task> {
+    const response = await apiClient.patch(`/tasks/${taskId}/move`, data);
+    return response.data.data;
+  },
+
+  /**
+   * Bulk update tasks
+   */
+  async bulkUpdate(data: {
+    taskIds: string[];
+    statusId?: string;
+    priorityId?: string;
+    assignees?: string[];
+    sprintId?: string;
+  }): Promise<{ updatedCount: number }> {
+    const response = await apiClient.post('/tasks/bulk', data);
+    return response.data.data;
+  },
+
+  /**
+   * Log time on a task
+   */
+  async logTime(taskId: string, hours: number, description?: string): Promise<any> {
+    const response = await apiClient.post(`/tasks/${taskId}/time`, { hours, description });
+    return response.data.data;
+  },
+
+  /**
+   * Get subtasks
+   */
+  async getSubtasks(taskId: string): Promise<Task[]> {
+    const response = await apiClient.get(`/tasks/${taskId}/subtasks`);
     return response.data.data;
   },
 
@@ -98,6 +178,22 @@ export const taskService = {
    */
   async deleteTask(taskId: string): Promise<void> {
     await apiClient.delete(`/tasks/${taskId}`);
+  },
+
+  /**
+   * Get workspace task statuses
+   */
+  async getStatuses(workspaceId: string): Promise<TaskStatus[]> {
+    const response = await apiClient.get(`/workspaces/${workspaceId}/statuses`);
+    return response.data.data;
+  },
+
+  /**
+   * Get workspace task priorities
+   */
+  async getPriorities(workspaceId: string): Promise<TaskPriority[]> {
+    const response = await apiClient.get(`/workspaces/${workspaceId}/priorities`);
+    return response.data.data;
   },
 };
 

@@ -22,6 +22,8 @@ import attachmentRoutes from './modules/attachments/attachment.routes';
 import organizationRoutes from './modules/organizations/organization.routes';
 import commentRoutes, { commentStandaloneRoutes } from './modules/comments/comment.routes';
 import teamRoutes from './modules/teams/team.routes';
+import sprintRoutes from './modules/sprints/sprint.routes';
+import milestoneRoutes from './modules/milestones/milestone.routes';
 
 const app: Application = express();
 
@@ -87,6 +89,8 @@ app.use('/api/organizations', organizationRoutes);
 app.use('/api/tasks/:taskId/comments', commentRoutes);
 app.use('/api/comments', commentStandaloneRoutes());
 app.use('/api/teams', teamRoutes);
+app.use('/api/sprints', sprintRoutes);
+app.use('/api/milestones', milestoneRoutes);
 
 // Health Check
 app.get('/health', (_req: Request, res: Response) => {
