@@ -4,6 +4,7 @@ import "./globals.css";
 import QueryProvider from "@/providers/query-provider";
 import AuthProvider from "@/providers/auth-provider";
 import { ThemeProvider } from "@/providers/theme-provider";
+import { ThemeSync } from "@/providers/theme-sync";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -29,6 +30,7 @@ export default function RootLayout({
     <html lang="en" className="h-full antialiased" suppressHydrationWarning>
       <body className={`${geistSans.variable} ${geistMono.variable} min-h-full bg-background text-foreground font-sans`}>
         <ThemeProvider>
+          <ThemeSync />
           <QueryProvider>
             <AuthProvider>
               {children}

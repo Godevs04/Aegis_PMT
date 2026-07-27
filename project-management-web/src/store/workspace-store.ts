@@ -8,6 +8,31 @@ interface Workspace {
   logo?: string;
 }
 
+const WORKSPACE_ID_KEY = 'active_workspace_id';
+const OBJECT_ID_RE = /^[a-fA-F0-9]{24}$/;
+
+/** Only accept a plain Mongo ObjectId string — never a stringified object. */
+function normalizeWorkspaceId(value: unknown): string | null {
+  if (typeof value !== 'string') return null;
+  const trimmed = value.trim();
+  if (OBJECT_ID_RE.test(trimmed)) return trimmed;
+  // Recover id if something previously wrote a bad stringified object
+  const match = trimmed.match(/[a-fA-F0-9]{24}/);
+  return match ? match[0] : null;
+}
+
+function readStoredWorkspaceId(): string | null {
+  if (typeof window === 'undefined') return null;
+  const raw = localStorage.getItem(WORKSPACE_ID_KEY);
+  const id = normalizeWorkspaceId(raw);
+  if (raw && !id) {
+    localStorage.removeItem(WORKSPACE_ID_KEY);
+  } else if (raw && id && raw !== id) {
+    localStorage.setItem(WORKSPACE_ID_KEY, id);
+  }
+  return id;
+}
+
 interface WorkspaceStoreState {
   currentWorkspaceId: string | null;
   currentWorkspace: Workspace | null;
@@ -16,29 +41,28 @@ interface WorkspaceStoreState {
 }
 
 export const useWorkspaceStore = create<WorkspaceStoreState>((set) => ({
-  currentWorkspaceId:
-    typeof window !== 'undefined' ? localStorage.getItem('active_workspace_id') : null,
+  currentWorkspaceId: readStoredWorkspaceId(),
   currentWorkspace: null,
 
   setCurrentWorkspaceId: (id) => {
+    const normalized = id ? normalizeWorkspaceId(id) : null;
     if (typeof window !== 'undefined') {
-      if (id) {
-        localStorage.setItem('active_workspace_id', id);
+      if (normalized) {
+        localStorage.setItem(WORKSPACE_ID_KEY, normalized);
       } else {
-        localStorage.removeItem('active_workspace_id');
+        localStorage.removeItem(WORKSPACE_ID_KEY);
       }
     }
-    set({ currentWorkspaceId: id });
+    set({ currentWorkspaceId: normalized });
   },
 
   setCurrentWorkspace: (workspace) => {
-    set({ currentWorkspace: workspace });
-    if (workspace) {
-      if (typeof window !== 'undefined') {
-        localStorage.setItem('active_workspace_id', workspace._id);
-      }
-      set({ currentWorkspaceId: workspace._id });
+    const id = workspace ? normalizeWorkspaceId(workspace._id) : null;
+    if (typeof window !== 'undefined') {
+      if (id) localStorage.setItem(WORKSPACE_ID_KEY, id);
+      else localStorage.removeItem(WORKSPACE_ID_KEY);
     }
+    set({ currentWorkspace: workspace, currentWorkspaceId: id });
   },
 }));
 

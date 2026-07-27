@@ -5,7 +5,9 @@ import sendResponse from '../../shared/utils/response';
 import { uploadToCloudinary } from '../../services/upload.service';
 import User from './user.model';
 import { OrganizationMember } from '../members/organization-member.model';
+import { WorkspaceMember } from '../members/workspace-member.model';
 import { Organization } from '../organizations/organization.model';
+import { Workspace } from '../workspaces/workspace.model';
 import { Role } from '../roles/role.model';
 import { SystemRole } from '../../config/permissions';
 
@@ -188,45 +190,123 @@ export class UserController {
   /**
    * GET /users/onboarding-status
    * Returns the user's onboarding state and what step they're on.
+   *
+   * Repairs legacy gaps where the user owns orgs / has workspace memberships
+   * but is missing OrganizationMember rows (which previously caused endless
+   * onboarding redirects on every login).
    */
   async getOnboardingStatus(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       if (!req.user) throw new AppError('Authentication required.', 401);
 
-      // Check memberships
+      const userId = req.user.id;
       let membershipCount = await OrganizationMember.countDocuments({
-        userId: req.user.id,
+        userId,
         status: 'active',
+        deletedAt: null,
       });
 
-      // Repair: user owns an org but has no membership (legacy gap)
+      // Repair: owned organizations without membership
       if (membershipCount === 0) {
-        const ownedOrg = await Organization.findOne({ ownerId: req.user.id });
-        if (ownedOrg) {
-          const ownerRole = await Role.findOne({ slug: SystemRole.ORG_OWNER, isSystem: true });
-          if (ownerRole) {
-            await OrganizationMember.create({
-              userId: req.user.id,
-              organizationId: ownedOrg.id,
-              roleId: ownerRole.id,
-              status: 'active',
-              joinedAt: new Date(),
-              createdBy: req.user.id,
-            });
-            membershipCount = await OrganizationMember.countDocuments({
-              userId: req.user.id,
-              status: 'active',
-            });
+        const ownedOrgs = await Organization.find({ ownerId: userId, deletedAt: null });
+        const ownerRole = await Role.findOne({ slug: SystemRole.ORG_OWNER, isSystem: true });
+        if (ownerRole && ownedOrgs.length > 0) {
+          for (const org of ownedOrgs) {
+            await OrganizationMember.updateOne(
+              { userId, organizationId: org.id },
+              {
+                $set: {
+                  status: 'active',
+                  deletedAt: null,
+                  roleId: ownerRole.id,
+                  updatedBy: userId,
+                },
+                $setOnInsert: {
+                  joinedAt: new Date(),
+                  createdBy: userId,
+                },
+              },
+              { upsert: true }
+            );
           }
+          membershipCount = await OrganizationMember.countDocuments({
+            userId,
+            status: 'active',
+            deletedAt: null,
+          });
+        }
+      }
+
+      // Repair: has workspace membership but no org membership (workspace-create path)
+      if (membershipCount === 0) {
+        const wsMemberships = await WorkspaceMember.find({
+          userId,
+          status: 'active',
+        }).select('workspaceId');
+
+        if (wsMemberships.length > 0) {
+          const workspaceIds = wsMemberships.map((m) => m.workspaceId);
+          const workspaces = await Workspace.find({ _id: { $in: workspaceIds } }).select(
+            'organizationId'
+          );
+          const orgIds = [...new Set(workspaces.map((w) => w.organizationId.toString()))];
+          const ownerRole = await Role.findOne({ slug: SystemRole.ORG_OWNER, isSystem: true });
+          const developerRole = await Role.findOne({
+            slug: SystemRole.DEVELOPER,
+            isSystem: true,
+          });
+
+          for (const orgId of orgIds) {
+            const org = await Organization.findById(orgId);
+            if (!org) continue;
+            const isOwner = org.ownerId.toString() === userId;
+            const role = isOwner ? ownerRole : developerRole;
+            if (!role) continue;
+            await OrganizationMember.updateOne(
+              { userId, organizationId: orgId },
+              {
+                $set: {
+                  status: 'active',
+                  deletedAt: null,
+                  roleId: role.id,
+                  updatedBy: userId,
+                },
+                $setOnInsert: {
+                  joinedAt: new Date(),
+                  createdBy: userId,
+                },
+              },
+              { upsert: true }
+            );
+          }
+
+          membershipCount = await OrganizationMember.countDocuments({
+            userId,
+            status: 'active',
+            deletedAt: null,
+          });
         }
       }
 
       const hasOrganization = membershipCount > 0;
+      const onboardingStep = Math.max(req.user.onboardingStep || 0, hasOrganization ? 2 : 0);
 
-      // Keep user flag in sync once they have an org
-      if (hasOrganization && !req.user.isOnboardingComplete) {
+      // Profile step is done if they already finished it OR already have an org
+      const profileComplete =
+        onboardingStep >= 1 || !!req.user.isOnboardingComplete || hasOrganization;
+
+      // Fully onboarded = has an organization (profile alone is not enough)
+      const isFullyOnboarded = hasOrganization;
+
+      if (
+        hasOrganization &&
+        (!req.user.isOnboardingComplete || (req.user.onboardingStep || 0) < 2)
+      ) {
         req.user.isOnboardingComplete = true;
         req.user.onboardingStep = 2;
+        await req.user.save();
+      } else if (profileComplete && !hasOrganization && (req.user.onboardingStep || 0) < 1) {
+        req.user.onboardingStep = 1;
         await req.user.save();
       }
 
@@ -236,9 +316,13 @@ export class UserController {
         success: true,
         message: 'Onboarding status retrieved successfully.',
         data: {
-          isOnboardingComplete: req.user.isOnboardingComplete,
-          onboardingStep: req.user.onboardingStep || 0,
+          // Keep legacy meaning for clients: profile step finished
+          isOnboardingComplete: profileComplete,
+          isFullyOnboarded,
+          onboardingStep: hasOrganization ? 2 : profileComplete ? 1 : 0,
           hasOrganization,
+          needsProfile: !profileComplete,
+          needsOrganization: !hasOrganization,
           profile: {
             name: req.user.name,
             bio: req.user.bio,
@@ -277,9 +361,12 @@ export class UserController {
         user.avatarUrl = avatarUrl;
       }
 
-      // Mark onboarding profile step as complete
-      user.isOnboardingComplete = true;
-      user.onboardingStep = 1;
+      // Profile step done — fully complete only after organization
+      user.onboardingStep = Math.max(user.onboardingStep || 0, 1);
+      // Keep true for backward compat with older clients, but org step still required
+      if (!user.isOnboardingComplete) {
+        user.isOnboardingComplete = true;
+      }
 
       await userRepository.save(user);
 

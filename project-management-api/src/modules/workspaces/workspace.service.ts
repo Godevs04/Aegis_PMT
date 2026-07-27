@@ -7,6 +7,7 @@ import { sendEmail } from '../../emails/mail.service';
 import User from '../users/user.model';
 import ActivityService from '../activities/activity.service';
 import { WorkspaceMember } from '../members/workspace-member.model';
+import { OrganizationMember } from '../members/organization-member.model';
 import { Role } from '../roles/role.model';
 import { SystemRole } from '../../config/permissions';
 import { auditLogService } from '../audit-logs/audit-log.service';
@@ -70,6 +71,32 @@ export class WorkspaceService {
         createdBy: userId,
       });
     }
+
+    // 3b. Ensure OrganizationMember exists (workspace-create used to skip this)
+    const ownerRole = await Role.findOne({ slug: SystemRole.ORG_OWNER, isSystem: true });
+    if (ownerRole) {
+      await OrganizationMember.updateOne(
+        { userId, organizationId: organization.id },
+        {
+          $set: {
+            status: 'active',
+            deletedAt: null,
+            roleId: ownerRole.id,
+            updatedBy: userId,
+          },
+          $setOnInsert: {
+            joinedAt: new Date(),
+            createdBy: userId,
+          },
+        },
+        { upsert: true }
+      );
+    }
+
+    await User.findByIdAndUpdate(userId, {
+      isOnboardingComplete: true,
+      onboardingStep: 2,
+    });
 
     // 4. Seed default task statuses and priorities
     await seedWorkspaceDefaults(workspace.id, userId);

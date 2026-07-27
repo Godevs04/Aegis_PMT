@@ -89,11 +89,8 @@ export default function OnboardingOrganizationPage() {
     setIsSubmitting(true);
     setError(null);
     const token = data.token.trim();
-    // Org names are not invite tokens — reject obvious mistakes early
-    if (token.includes(' ') || token.length < 16) {
-      setError(
-        'That looks like an organization name, not an invitation token. Ask your admin for the invite link/token, or create a new organization instead.'
-      );
+    if (!token) {
+      setError('Enter an invitation token, or the name of an organization you already own.');
       setIsSubmitting(false);
       return;
     }
@@ -104,7 +101,7 @@ export default function OnboardingOrganizationPage() {
       setError(
         getApiErrorMessage(
           err,
-          'Invalid or expired invitation token. Use the token from your invite email — not the organization name.'
+          'Could not join. Use an invite token from email, or enter the exact name of an organization you already own. Otherwise go back and Create.'
         )
       );
     } finally {
@@ -289,27 +286,27 @@ export default function OnboardingOrganizationPage() {
                 <div>
                   <h2 className="text-lg font-bold text-foreground">Join Organization</h2>
                   <p className="text-xs text-muted-foreground">
-                    Use the invitation token from your invite email — not the org name
+                    Paste an invite token, or the name of an org you already own
                   </p>
                 </div>
               </div>
 
               <form onSubmit={joinForm.handleSubmit(handleJoinOrg)} className="space-y-4">
                 <div className="space-y-1.5">
-                  <Label htmlFor="token">Invitation Token</Label>
+                  <Label htmlFor="token">Invitation Token or Your Org Name</Label>
                   <Input
                     id="token"
-                    placeholder="Paste invitation token (long code from email)"
+                    placeholder="Invite token, or e.g. Kavinkumar K"
                     disabled={isSubmitting}
                     {...joinForm.register('token', {
-                      required: 'Invitation token is required',
+                      required: 'Token or organization name is required',
                     })}
                   />
                   {joinForm.formState.errors.token && (
                     <p className="text-xs text-destructive">{joinForm.formState.errors.token.message}</p>
                   )}
                   <p className="text-[11px] text-muted-foreground">
-                    Entering an organization name here will not work. If you don&apos;t have a token, go back and create a new organization instead.
+                    If you already created this organization, enter its name to reopen it. New teammates need an invite token from an admin.
                   </p>
                 </div>
 

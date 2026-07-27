@@ -46,8 +46,26 @@ export function LoginForm() {
       const { accessToken, user } = response.data.data;
       setAuth(user, accessToken);
 
-      // Redirect to dashboard/home page
-      router.push('/dashboard');
+      // Route by onboarding status so returning users skip profile/org screens
+      try {
+        const statusRes = await apiClient.get('/users/onboarding-status');
+        const status = statusRes.data.data as {
+          hasOrganization?: boolean;
+          needsProfile?: boolean;
+          needsOrganization?: boolean;
+        };
+        if (status.hasOrganization) {
+          router.push('/dashboard');
+        } else if (status.needsProfile) {
+          router.push('/onboarding/profile');
+        } else if (status.needsOrganization) {
+          router.push('/onboarding/organization');
+        } else {
+          router.push('/dashboard');
+        }
+      } catch {
+        router.push('/dashboard');
+      }
       router.refresh();
     } catch (err: unknown) {
       setError(getApiErrorMessage(err, 'Failed to sign in. Please verify your credentials.'));
@@ -59,7 +77,7 @@ export function LoginForm() {
   return (
     <div className="w-full max-w-md p-8 rounded-2xl border border-border bg-card/50 backdrop-blur-md shadow-2xl">
       <div className="flex flex-col space-y-2 text-center mb-6">
-        <h1 className="text-2xl font-bold tracking-tight text-white">
+        <h1 className="text-2xl font-bold tracking-tight text-foreground">
           Sign In to Aegis
         </h1>
         <p className="text-sm text-muted-foreground">
@@ -115,7 +133,7 @@ export function LoginForm() {
             <button
               type="button"
               onClick={() => setShowPassword(!showPassword)}
-              className="absolute right-3 top-2.5 text-muted-foreground hover:text-white"
+              className="absolute right-3 top-2.5 text-muted-foreground hover:text-foreground"
             >
               {showPassword ? (
                 <EyeOff className="h-4 w-4" />

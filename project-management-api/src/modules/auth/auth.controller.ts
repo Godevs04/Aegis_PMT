@@ -66,6 +66,13 @@ export class AuthController {
             name: user.name,
             email: user.email,
             role: user.role,
+            avatarUrl: user.avatarUrl,
+            bio: user.bio,
+            timezone: user.timezone,
+            language: user.language,
+            theme: user.theme,
+            isOnboardingComplete: user.isOnboardingComplete,
+            onboardingStep: user.onboardingStep,
           },
         },
       });

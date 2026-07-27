@@ -108,7 +108,7 @@ export default function OnboardingProfilePage() {
   };
 
   return (
-    <div className="relative flex min-h-screen flex-col items-center justify-center overflow-hidden py-12 px-4 sm:px-6 lg:px-8 bg-zinc-950">
+    <div className="relative flex min-h-screen flex-col items-center justify-center overflow-hidden py-12 px-4 sm:px-6 lg:px-8 bg-background">
       {/* Background effects */}
       <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] rounded-full bg-primary/8 blur-[140px] pointer-events-none" />
       <div className="absolute bottom-1/3 right-1/4 w-[300px] h-[300px] rounded-full bg-blue-500/5 blur-[100px] pointer-events-none" />
@@ -116,19 +116,19 @@ export default function OnboardingProfilePage() {
       <div className="relative z-10 w-full max-w-lg flex flex-col items-center">
         {/* Logo */}
         <div className="flex items-center space-x-2 mb-6 select-none">
-          <div className="h-9 w-9 rounded-lg bg-primary flex items-center justify-center text-white font-bold text-xl shadow-lg shadow-primary/20">
+          <div className="h-9 w-9 rounded-lg bg-primary flex items-center justify-center text-primary-foreground font-bold text-xl shadow-lg shadow-primary/20">
             A
           </div>
-          <span className="text-xl font-bold tracking-tight text-white">Aegis</span>
+          <span className="text-xl font-bold tracking-tight text-foreground">Aegis</span>
         </div>
 
         {/* Progress indicator */}
         <div className="flex items-center space-x-3 mb-8">
           <div className="flex items-center space-x-2">
-            <div className="h-8 w-8 rounded-full bg-primary flex items-center justify-center text-white text-sm font-medium">
+            <div className="h-8 w-8 rounded-full bg-primary flex items-center justify-center text-primary-foreground text-sm font-medium">
               <User className="h-4 w-4" />
             </div>
-            <span className="text-sm font-medium text-white">Profile</span>
+            <span className="text-sm font-medium text-foreground">Profile</span>
           </div>
           <div className="h-px w-8 bg-border" />
           <div className="flex items-center space-x-2">
@@ -149,7 +149,7 @@ export default function OnboardingProfilePage() {
         {/* Form Card */}
         <div className="w-full p-8 rounded-2xl border border-border bg-card/50 backdrop-blur-md shadow-2xl">
           <div className="flex flex-col space-y-2 text-center mb-6">
-            <h1 className="text-2xl font-bold tracking-tight text-white">
+            <h1 className="text-2xl font-bold tracking-tight text-foreground">
               Complete Your Profile
             </h1>
             <p className="text-sm text-muted-foreground">
@@ -182,7 +182,7 @@ export default function OnboardingProfilePage() {
                   <Upload className="h-6 w-6 text-muted-foreground group-hover:text-primary transition-colors" />
                 )}
                 <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center rounded-full">
-                  <Upload className="h-5 w-5 text-white" />
+                  <Upload className="h-5 w-5 text-primary-foreground" />
                 </div>
               </button>
               <p className="text-xs text-muted-foreground">Upload avatar (optional)</p>

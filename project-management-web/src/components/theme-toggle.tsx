@@ -13,26 +13,28 @@ interface ThemeToggleProps {
 export function ThemeToggle({ className, showLabel = false }: ThemeToggleProps) {
   const { theme, setTheme, resolvedTheme } = useTheme();
 
+  // Cycle light → dark → system so each click is a clear visual change
   const cycle = () => {
-    if (theme === 'light') setTheme('dark');
-    else if (theme === 'dark') setTheme('system');
+    const current = theme ?? 'system';
+    if (current === 'light') setTheme('dark');
+    else if (current === 'dark') setTheme('system');
     else setTheme('light');
   };
 
-  // Prefer resolvedTheme after hydration; fall back safely for SSR
-  const active = theme ?? resolvedTheme ?? 'system';
+  const active = theme === 'system' ? 'system' : (resolvedTheme ?? theme ?? 'system');
   const Icon = active === 'dark' ? Moon : active === 'light' ? Sun : Monitor;
-  const label = active === 'dark' ? 'Dark' : active === 'light' ? 'Light' : 'System';
+  const label = theme === 'system' ? 'System' : active === 'dark' ? 'Dark' : 'Light';
 
   return (
     <button
+      type="button"
       onClick={cycle}
       className={cn(
         'h-8 rounded-md flex items-center justify-center gap-1.5 text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors',
         showLabel ? 'px-2.5' : 'w-8',
         className
       )}
-      title={`Theme: ${label} (click to cycle)`}
+      title={`Theme: ${label} (click to cycle Light → Dark → System)`}
       aria-label={`Current theme: ${label}. Click to change.`}
       suppressHydrationWarning
     >

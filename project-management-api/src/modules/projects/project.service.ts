@@ -11,6 +11,7 @@ import { Role } from '../roles/role.model';
 import { SystemRole } from '../../config/permissions';
 import { auditLogService } from '../audit-logs/audit-log.service';
 import { snapshot } from '../../shared/utils/diff';
+import { resolveRefId } from '../../shared/utils/resolveRefId';
 
 const PROJECT_AUDIT_FIELDS = ['name', 'prefix', 'description', 'status', 'startDate', 'endDate', 'tags'];
 
@@ -26,20 +27,25 @@ export class ProjectService {
   /**
    * Helper to verify workspace membership
    */
-  private async checkWorkspaceMembership(workspaceId: string, userId: string): Promise<void> {
-    const workspace = await Workspace.findById(workspaceId);
+  private async checkWorkspaceMembership(workspaceId: unknown, userId: string): Promise<void> {
+    const id = resolveRefId(workspaceId);
+    const workspace = await Workspace.findById(id);
     if (!workspace) {
       throw new AppError('Workspace not found.', 404);
     }
 
     const member = await WorkspaceMember.findOne({
-      workspaceId,
+      workspaceId: id,
       userId,
       status: 'active',
     });
     if (!member) {
       throw new AppError('Access denied. You are not a member of this workspace.', 403);
     }
+  }
+
+  private workspaceIdOf(project: IProject): string {
+    return resolveRefId(project.workspaceId);
   }
 
   /**
@@ -147,7 +153,7 @@ export class ProjectService {
       throw new AppError('Project not found.', 404);
     }
 
-    await this.checkWorkspaceMembership(project.workspaceId.toString(), userId);
+    await this.checkWorkspaceMembership(this.workspaceIdOf(project), userId);
     return project;
   }
 
@@ -164,7 +170,7 @@ export class ProjectService {
       throw new AppError('Project not found.', 404);
     }
 
-    await this.checkWorkspaceMembership(project.workspaceId.toString(), userId);
+    await this.checkWorkspaceMembership(this.workspaceIdOf(project), userId);
 
     // Capture previous values for audit
     const previousValues = snapshot(project.toObject(), PROJECT_AUDIT_FIELDS);
@@ -187,7 +193,7 @@ export class ProjectService {
     const newValues = snapshot(updatedProject.toObject(), PROJECT_AUDIT_FIELDS);
 
     auditLogService.log({
-      workspaceId: updatedProject.workspaceId.toString(),
+      workspaceId: this.workspaceIdOf(updatedProject),
       projectId: updatedProject.id,
       entityType: 'Project',
       entityId: updatedProject.id,
@@ -208,14 +214,14 @@ export class ProjectService {
     const project = await this.repository.findProjectById(projectId);
     if (!project) throw new AppError('Project not found.', 404);
 
-    await this.checkWorkspaceMembership(project.workspaceId.toString(), userId);
+    await this.checkWorkspaceMembership(this.workspaceIdOf(project), userId);
 
     project.status = 'archived';
     project.updatedBy = userId as any;
     const updated = await this.repository.saveProject(project);
 
     auditLogService.log({
-      workspaceId: project.workspaceId.toString(),
+      workspaceId: this.workspaceIdOf(project),
       projectId: project.id,
       entityType: 'Project',
       entityId: project.id,
@@ -225,7 +231,7 @@ export class ProjectService {
     });
 
     await this.activityService.logActivity({
-      workspaceId: project.workspaceId.toString() as any,
+      workspaceId: this.workspaceIdOf(project) as any,
       projectId: project.id as any,
       userId: userId as any,
       action: 'project.archived',
@@ -242,14 +248,14 @@ export class ProjectService {
     const project = await this.repository.findProjectById(projectId);
     if (!project) throw new AppError('Project not found.', 404);
 
-    await this.checkWorkspaceMembership(project.workspaceId.toString(), userId);
+    await this.checkWorkspaceMembership(this.workspaceIdOf(project), userId);
 
     project.status = 'active';
     project.updatedBy = userId as any;
     const updated = await this.repository.saveProject(project);
 
     auditLogService.log({
-      workspaceId: project.workspaceId.toString(),
+      workspaceId: this.workspaceIdOf(project),
       projectId: project.id,
       entityType: 'Project',
       entityId: project.id,
@@ -268,10 +274,10 @@ export class ProjectService {
     const project = await this.repository.findProjectById(projectId);
     if (!project) throw new AppError('Project not found.', 404);
 
-    await this.checkWorkspaceMembership(project.workspaceId.toString(), userId);
+    await this.checkWorkspaceMembership(this.workspaceIdOf(project), userId);
 
     auditLogService.log({
-      workspaceId: project.workspaceId.toString(),
+      workspaceId: this.workspaceIdOf(project),
       projectId: project.id,
       entityType: 'Project',
       entityId: project.id,
@@ -291,7 +297,7 @@ export class ProjectService {
     const project = await this.repository.findProjectById(projectId);
     if (!project) throw new AppError('Project not found.', 404);
 
-    await this.checkWorkspaceMembership(project.workspaceId.toString(), userId);
+    await this.checkWorkspaceMembership(this.workspaceIdOf(project), userId);
 
     const tasks = await Task.find({ projectId, deletedAt: null });
 
@@ -347,7 +353,7 @@ export class ProjectService {
     const project = await this.repository.findProjectById(projectId);
     if (!project) throw new AppError('Project not found.', 404);
 
-    await this.checkWorkspaceMembership(project.workspaceId.toString(), userId);
+    await this.checkWorkspaceMembership(this.workspaceIdOf(project), userId);
 
     const members = await ProjectMember.find({ projectId, status: 'active' })
       .populate('userId', 'name email avatarUrl')
@@ -368,7 +374,7 @@ export class ProjectService {
     const project = await this.repository.findProjectById(projectId);
     if (!project) throw new AppError('Project not found.', 404);
 
-    await this.checkWorkspaceMembership(project.workspaceId.toString(), addedBy);
+    await this.checkWorkspaceMembership(this.workspaceIdOf(project), addedBy);
 
     // Verify target user is workspace member
     const targetWsMember = await WorkspaceMember.findOne({
@@ -400,7 +406,7 @@ export class ProjectService {
     });
 
     await this.activityService.logActivity({
-      workspaceId: project.workspaceId.toString() as any,
+      workspaceId: this.workspaceIdOf(project) as any,
       projectId: project.id as any,
       userId: addedBy as any,
       action: 'project.member_added',
@@ -426,7 +432,7 @@ export class ProjectService {
     const project = await this.repository.findProjectById(projectId);
     if (project) {
       await this.activityService.logActivity({
-        workspaceId: project.workspaceId.toString() as any,
+        workspaceId: this.workspaceIdOf(project) as any,
         projectId: project.id as any,
         userId: removedBy as any,
         action: 'project.member_removed',

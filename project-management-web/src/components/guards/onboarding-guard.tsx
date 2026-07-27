@@ -12,11 +12,11 @@ const ONBOARDING_PATHS = ['/onboarding/profile', '/onboarding/organization'];
 /**
  * OnboardingGuard
  *
- * Flow:
+ * Flow (first signup only):
  * 1. Not authenticated → /login
  * 2. Profile incomplete → /onboarding/profile
  * 3. No organization → /onboarding/organization
- * 4. Fully onboarded → allow app (and bounce away from onboarding pages)
+ * 4. Has organization → allow app (bounce off onboarding pages)
  */
 export function OnboardingGuard({ children }: { children: React.ReactNode }) {
   const router = useRouter();
@@ -47,34 +47,47 @@ export function OnboardingGuard({ children }: { children: React.ReactNode }) {
         const response = await apiClient.get('/users/onboarding-status');
         const status = response.data.data as {
           isOnboardingComplete?: boolean;
+          isFullyOnboarded?: boolean;
           hasOrganization?: boolean;
+          needsProfile?: boolean;
+          needsOrganization?: boolean;
         };
 
         if (cancelled) return;
 
-        if (status.isOnboardingComplete && !user.isOnboardingComplete && accessToken) {
+        const needsProfile = status.needsProfile ?? !status.isOnboardingComplete;
+        const needsOrganization =
+          status.needsOrganization ?? !status.hasOrganization;
+        const fullyOnboarded =
+          status.isFullyOnboarded ?? !!status.hasOrganization;
+
+        if (fullyOnboarded && accessToken && !user.isOnboardingComplete) {
           const me = await apiClient.get('/users/me');
           if (!cancelled) setAuth(me.data.data, accessToken);
         }
 
         const onOnboardingPage = ONBOARDING_PATHS.some((p) => pathname.startsWith(p));
 
-        if (!status.isOnboardingComplete && !pathname.startsWith('/onboarding/profile')) {
+        if (fullyOnboarded) {
+          if (onOnboardingPage) {
+            router.replace('/dashboard');
+            return;
+          }
+          if (!cancelled) setGate({ checking: false, allowed: true });
+          return;
+        }
+
+        if (needsProfile && !pathname.startsWith('/onboarding/profile')) {
           router.replace('/onboarding/profile');
           return;
         }
 
         if (
-          status.isOnboardingComplete &&
-          !status.hasOrganization &&
+          !needsProfile &&
+          needsOrganization &&
           !pathname.startsWith('/onboarding/organization')
         ) {
           router.replace('/onboarding/organization');
-          return;
-        }
-
-        if (status.hasOrganization && onOnboardingPage) {
-          router.replace('/dashboard');
           return;
         }
 

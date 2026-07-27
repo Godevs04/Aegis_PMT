@@ -174,7 +174,13 @@ export class OrganizationService {
       organizationId,
       status: 'active',
     });
-    if (existing) return;
+    if (existing) {
+      await User.findByIdAndUpdate(userId, {
+        isOnboardingComplete: true,
+        onboardingStep: 2,
+      });
+      return;
+    }
 
     const ownerRole = await Role.findOne({ slug: SystemRole.ORG_OWNER, isSystem: true });
     if (!ownerRole) {
@@ -184,19 +190,54 @@ export class OrganizationService {
       );
     }
 
-    await OrganizationMember.create({
-      userId,
-      organizationId,
-      roleId: ownerRole.id,
-      status: 'active',
-      joinedAt: new Date(),
-      createdBy: userId,
-    });
+    await OrganizationMember.updateOne(
+      { userId, organizationId },
+      {
+        $set: {
+          status: 'active',
+          deletedAt: null,
+          roleId: ownerRole.id,
+          updatedBy: userId,
+        },
+        $setOnInsert: {
+          joinedAt: new Date(),
+          createdBy: userId,
+        },
+      },
+      { upsert: true }
+    );
 
     await User.findByIdAndUpdate(userId, {
       isOnboardingComplete: true,
       onboardingStep: 2,
     });
+  }
+
+  /**
+   * If the user already owns an org matching name/slug, restore membership and return it.
+   */
+  private async claimOwnedOrganization(
+    nameOrSlug: string,
+    userId: string
+  ): Promise<IOrganization | null> {
+    const trimmed = nameOrSlug.trim();
+    if (!trimmed) return null;
+
+    const slug = trimmed
+      .toLowerCase()
+      .replace(/[^a-z0-9\s-]/g, '')
+      .replace(/\s+/g, '-')
+      .replace(/-+/g, '-')
+      .trim();
+
+    const owned = await Organization.findOne({
+      ownerId: userId,
+      $or: [{ slug }, { name: new RegExp(`^${trimmed.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') }],
+    });
+
+    if (!owned) return null;
+    await this.ensureOwnerMembership(owned.id, userId);
+    return owned;
   }
 
   /**
@@ -384,6 +425,8 @@ export class OrganizationService {
 
   /**
    * Join an organization via invitation token.
+   * Also allows owners to re-enter an org they already own by name/slug
+   * (fixes the common mistake of typing the org name into the join field).
    */
   async joinByToken(token: string, userId: string): Promise<IOrganization> {
     const invitation = await Invitation.findOne({
@@ -391,8 +434,14 @@ export class OrganizationService {
       status: 'pending',
       expiresAt: { $gt: new Date() },
     });
+
     if (!invitation) {
-      throw new AppError('Invalid or expired invitation token.', 400);
+      const owned = await this.claimOwnedOrganization(token, userId);
+      if (owned) return owned;
+      throw new AppError(
+        'Invalid or expired invitation token. Paste the invite code from your email — or if you already own this organization, create/open it from the Create option instead.',
+        400
+      );
     }
 
     // Verify user email matches invitation
@@ -425,15 +474,23 @@ export class OrganizationService {
       const resolvedRole = role || defaultRole;
 
       if (resolvedRole) {
-        await OrganizationMember.create({
-          userId,
-          organizationId: org.id,
-          roleId: resolvedRole.id,
-          status: 'active',
-          joinedAt: new Date(),
-          invitedBy: invitation.invitedBy,
-          createdBy: userId,
-        });
+        await OrganizationMember.updateOne(
+          { userId, organizationId: org.id },
+          {
+            $set: {
+              status: 'active',
+              deletedAt: null,
+              roleId: resolvedRole.id,
+              invitedBy: invitation.invitedBy,
+              updatedBy: userId,
+            },
+            $setOnInsert: {
+              joinedAt: new Date(),
+              createdBy: userId,
+            },
+          },
+          { upsert: true }
+        );
       }
     }
 
@@ -447,15 +504,23 @@ export class OrganizationService {
     if (!existingWsMember) {
       const wsRole = await Role.findOne({ slug: SystemRole.DEVELOPER, isSystem: true });
       if (wsRole) {
-        await WorkspaceMember.create({
-          userId,
-          workspaceId: workspace.id,
-          roleId: wsRole.id,
-          status: 'active',
-          joinedAt: new Date(),
-          invitedBy: invitation.invitedBy,
-          createdBy: userId,
-        });
+        await WorkspaceMember.updateOne(
+          { userId, workspaceId: workspace.id },
+          {
+            $set: {
+              status: 'active',
+              deletedAt: null,
+              roleId: wsRole.id,
+              invitedBy: invitation.invitedBy,
+              updatedBy: userId,
+            },
+            $setOnInsert: {
+              joinedAt: new Date(),
+              createdBy: userId,
+            },
+          },
+          { upsert: true }
+        );
       }
     }
 

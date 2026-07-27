@@ -5,41 +5,44 @@ import { useAuthStore } from '@/store/auth-store';
 import { apiClient } from '@/services/api-client';
 import { Loader2 } from 'lucide-react';
 
+/** Shared across SSR + client first paint — do not diverge these classes. */
+const SESSION_SHELL =
+  'flex min-h-screen items-center justify-center bg-background text-foreground';
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const { setAuth, clearAuth } = useAuthStore();
-  const [isInitializing, setIsInitializing] = useState(true);
+  const [bootstrapped, setBootstrapped] = useState(false);
 
   useEffect(() => {
+    let cancelled = false;
+
     const initializeSession = async () => {
       try {
-        // 1. Attempt to refresh token using HTTP-only cookie
         const refreshResponse = await apiClient.post('/auth/refresh');
         const { accessToken } = refreshResponse.data.data;
-
-        // 2. We need to temporarily set accessToken in memory so the /users/me request is authorized
-        // (Zustand getState/setState is synchronous, so it is available immediately for the next call)
         useAuthStore.setState({ accessToken });
 
-        // 3. Fetch user profile details
         const userResponse = await apiClient.get('/users/me');
-        const user = userResponse.data.data;
-
-        // 4. Save fully authenticated state
-        setAuth(user, accessToken);
+        if (!cancelled) {
+          setAuth(userResponse.data.data, accessToken);
+        }
       } catch {
-        // If refresh fails (e.g. no cookie or expired), clear state
-        clearAuth();
+        if (!cancelled) clearAuth();
       } finally {
-        setIsInitializing(false);
+        if (!cancelled) setBootstrapped(true);
       }
     };
 
-    initializeSession();
+    void initializeSession();
+    return () => {
+      cancelled = true;
+    };
   }, [setAuth, clearAuth]);
 
-  if (isInitializing) {
+  // Same tree on server and the client's first paint (avoids hydration mismatch)
+  if (!bootstrapped) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-zinc-950 text-white">
+      <div className={SESSION_SHELL} suppressHydrationWarning>
         <div className="flex flex-col items-center space-y-4">
           <Loader2 className="h-10 w-10 animate-spin text-primary" />
           <p className="text-xs text-muted-foreground tracking-wider animate-pulse">
