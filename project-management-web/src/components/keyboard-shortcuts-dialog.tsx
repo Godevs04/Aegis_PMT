@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { Keyboard } from 'lucide-react';
-import { useKeyboardShortcuts, Shortcut } from '@/hooks/use-keyboard-shortcuts';
+import { useKeyboardShortcuts } from '@/hooks/use-keyboard-shortcuts';
 
 /**
  * KeyboardShortcutsDialog

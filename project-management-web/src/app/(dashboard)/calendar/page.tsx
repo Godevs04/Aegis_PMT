@@ -18,11 +18,18 @@ export default function CalendarPage() {
       : null
   );
 
-  const tasks: Task[] = tasksData?.data || [];
-
   // Convert tasks with due dates into FullCalendar events
   const events = useMemo(() => {
-    const calendarEvents: any[] = [];
+    const tasks = tasksData?.data ?? [];
+    const calendarEvents: Array<{
+      id: string;
+      title: string;
+      date: string;
+      backgroundColor: string;
+      borderColor: string;
+      textColor: string;
+      extendedProps: { task: Task; isOverdue: boolean; isCompleted: boolean };
+    }> = [];
 
     for (const task of tasks) {
       if (!task.dueDate) continue;
@@ -61,7 +68,7 @@ export default function CalendarPage() {
     }
 
     return calendarEvents;
-  }, [tasks]);
+  }, [tasksData?.data]);
 
   if (isLoading) {
     return (

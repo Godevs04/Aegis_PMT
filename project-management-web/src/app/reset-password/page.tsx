@@ -2,12 +2,13 @@
 
 import React, { useState } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { useForm } from 'react-hook-form';
+import { useForm, useWatch } from 'react-hook-form';
 import { Loader2, Lock, Eye, EyeOff, CheckCircle2, AlertTriangle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { apiClient } from '@/services/api-client';
+import { getApiErrorMessage } from '@/utils/api-error';
 
 interface ResetPasswordValues {
   password: string;
@@ -26,13 +27,13 @@ export default function ResetPasswordPage() {
   const {
     register,
     handleSubmit,
-    watch,
+    control,
     formState: { errors },
   } = useForm<ResetPasswordValues>({
     defaultValues: { password: '', confirmPassword: '' },
   });
 
-  const passwordValue = watch('password');
+  const passwordValue = useWatch({ control, name: 'password' });
 
   const onSubmit = async (data: ResetPasswordValues) => {
     if (!token) {
@@ -47,8 +48,8 @@ export default function ResetPasswordPage() {
         password: data.password,
       });
       setIsSuccess(true);
-    } catch (err: any) {
-      setError(err.response?.data?.message || 'Failed to reset password. The token may have expired.');
+    } catch (err: unknown) {
+      setError(getApiErrorMessage(err, 'Failed to reset password. The token may have expired.'));
     } finally {
       setIsSubmitting(false);
     }

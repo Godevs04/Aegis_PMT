@@ -5,7 +5,7 @@ export interface SearchResult {
   id: string;
   title: string;
   subtitle?: string;
-  meta?: Record<string, any>;
+  meta?: Record<string, unknown>;
 }
 
 export interface SearchResponse {

@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { apiClient } from '@/services/api-client';
+import { getApiErrorMessage } from '@/utils/api-error';
 
 interface ForgotPasswordValues {
   email: string;
@@ -31,8 +32,8 @@ export default function ForgotPasswordPage() {
     try {
       await apiClient.post('/auth/forgot-password', { email: data.email });
       setIsSuccess(true);
-    } catch (err: any) {
-      setError(err.response?.data?.message || 'Something went wrong. Please try again.');
+    } catch (err: unknown) {
+      setError(getApiErrorMessage(err, 'Something went wrong. Please try again.'));
     } finally {
       setIsSubmitting(false);
     }

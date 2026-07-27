@@ -255,7 +255,6 @@ taskSchema.virtual('spentHours').get(function (this: ITask) {
 // ─── Indexes ─────────────────────────────────────────────────────────────────
 taskSchema.index({ workspaceId: 1, deletedAt: 1 });
 taskSchema.index({ projectId: 1, statusId: 1, order: 1 });
-taskSchema.index({ projectId: 1, taskNumber: 1 });
 taskSchema.index(
   { projectId: 1, taskNumber: 1 },
   { unique: true, partialFilterExpression: { deletedAt: null } }

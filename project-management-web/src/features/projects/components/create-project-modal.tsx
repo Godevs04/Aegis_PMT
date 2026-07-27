@@ -1,13 +1,14 @@
 'use client';
 
 import React, { useState } from 'react';
-import { useForm } from 'react-hook-form';
+import { useForm, useWatch } from 'react-hook-form';
 import { Loader2, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useCreateProjectMutation } from '@/hooks/use-projects';
 import { useWorkspaceStore } from '@/store/workspace-store';
+import { getApiErrorMessage } from '@/utils/api-error';
 
 interface CreateProjectFormValues {
   name: string;
@@ -29,14 +30,15 @@ export function CreateProjectModal({ isOpen, onClose }: CreateProjectModalProps)
     register,
     handleSubmit,
     reset,
-    watch,
+    control,
     setValue,
     formState: { errors },
   } = useForm<CreateProjectFormValues>({
     defaultValues: { name: '', prefix: '', description: '' },
   });
 
-  const nameValue = watch('name');
+  const nameValue = useWatch({ control, name: 'name' });
+  const prefixValue = useWatch({ control, name: 'prefix' });
 
   // Auto-generate prefix from name
   React.useEffect(() => {
@@ -66,8 +68,8 @@ export function CreateProjectModal({ isOpen, onClose }: CreateProjectModalProps)
       });
       reset();
       onClose();
-    } catch (err: any) {
-      setError(err.response?.data?.message || 'Failed to create project.');
+    } catch (err: unknown) {
+      setError(getApiErrorMessage(err, 'Failed to create project.'));
     }
   };
 
@@ -142,7 +144,7 @@ export function CreateProjectModal({ isOpen, onClose }: CreateProjectModalProps)
                   })}
                 />
                 <span className="text-xs text-muted-foreground">
-                  Tasks will be numbered as <span className="font-mono text-foreground">{watch('prefix') || 'PRJ'}-1</span>
+                  Tasks will be numbered as <span className="font-mono text-foreground">{prefixValue || 'PRJ'}-1</span>
                 </span>
               </div>
               {errors.prefix && <p className="text-xs text-destructive">{errors.prefix.message}</p>}

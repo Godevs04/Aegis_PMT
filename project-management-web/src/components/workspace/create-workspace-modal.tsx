@@ -16,6 +16,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useCreateWorkspaceMutation } from '@/hooks/use-workspaces';
+import { getApiErrorMessage } from '@/utils/api-error';
 
 const createWorkspaceSchema = z.object({
   name: z
@@ -59,10 +60,9 @@ export function CreateWorkspaceModal({ isOpen, onClose }: CreateWorkspaceModalPr
           reset();
           onClose();
         },
-        onError: (err: any) => {
+        onError: (err: unknown) => {
           setError(
-            err.response?.data?.message ||
-              'Failed to create workspace. Please try again.'
+            getApiErrorMessage(err, 'Failed to create workspace. Please try again.')
           );
         },
       }

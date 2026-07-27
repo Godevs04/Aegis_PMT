@@ -17,7 +17,7 @@ export interface Activity {
     avatarUrl?: string;
   };
   action: string;
-  details?: Record<string, any>;
+  details?: Record<string, unknown>;
   createdAt: string;
 }
 
@@ -44,8 +44,15 @@ export const activityService = {
   /**
    * Fetch activity log timeline in active workspace
    */
-  async getWorkspaceTimeline(workspaceId: string): Promise<Activity[]> {
-    const response = await apiClient.get(`/activities?workspaceId=${workspaceId}`);
+  async getWorkspaceTimeline(
+    workspaceId: string,
+    options?: { page?: number; limit?: number; projectId?: string }
+  ): Promise<Activity[]> {
+    const params = new URLSearchParams({ workspaceId });
+    if (options?.page) params.append('page', String(options.page));
+    if (options?.limit) params.append('limit', String(options.limit));
+    if (options?.projectId) params.append('projectId', options.projectId);
+    const response = await apiClient.get(`/activities?${params.toString()}`);
     return response.data.data;
   },
 

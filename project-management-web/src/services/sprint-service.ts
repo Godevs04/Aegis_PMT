@@ -81,7 +81,7 @@ export const sprintService = {
     return response.data.data;
   },
 
-  async getBacklog(projectId: string, workspaceId: string): Promise<any[]> {
+  async getBacklog(projectId: string, workspaceId: string): Promise<unknown[]> {
     const response = await apiClient.get(`/sprints/backlog?projectId=${projectId}&workspaceId=${workspaceId}`);
     return response.data.data;
   },

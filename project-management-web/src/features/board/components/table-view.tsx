@@ -13,8 +13,9 @@ import {
 } from '@tanstack/react-table';
 import { ArrowUpDown, ArrowUp, ArrowDown, ChevronLeft, ChevronRight, Loader2, Calendar } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Task, TaskStatus, TaskPriority } from '@/services/task-service';
-import { useTasksQuery, useStatusesQuery, usePrioritiesQuery } from '@/hooks/use-tasks';
+import { useTasksQuery } from '@/hooks/use-tasks';
 import { useWorkspaceStore } from '@/store/workspace-store';
 
 interface TableViewProps {
@@ -41,7 +42,7 @@ export function TableView({ projectId, projectPrefix, onTaskClick }: TableViewPr
       // Select
       {
         id: 'select',
-        header: ({ table }: any) => (
+        header: ({ table }) => (
           <input
             type="checkbox"
             checked={table.getIsAllPageRowsSelected()}
@@ -49,12 +50,12 @@ export function TableView({ projectId, projectPrefix, onTaskClick }: TableViewPr
             className="h-3.5 w-3.5 rounded border-border bg-transparent text-primary focus:ring-primary"
           />
         ),
-        cell: ({ row }: any) => (
+        cell: ({ row }) => (
           <input
             type="checkbox"
             checked={row.getIsSelected()}
             onChange={row.getToggleSelectedHandler()}
-            onClick={(e: any) => e.stopPropagation()}
+            onClick={(e) => e.stopPropagation()}
             className="h-3.5 w-3.5 rounded border-border bg-transparent text-primary focus:ring-primary"
           />
         ),
@@ -65,7 +66,7 @@ export function TableView({ projectId, projectPrefix, onTaskClick }: TableViewPr
       {
         accessorKey: 'taskNumber',
         header: 'ID',
-        cell: ({ row }: any) => (
+        cell: ({ row }) => (
           <span className="text-[10px] font-mono text-muted-foreground">
             {projectPrefix ? `${projectPrefix}-${row.original.taskNumber}` : `#${row.original.taskNumber}`}
           </span>
@@ -76,7 +77,7 @@ export function TableView({ projectId, projectPrefix, onTaskClick }: TableViewPr
       {
         accessorKey: 'title',
         header: 'Title',
-        cell: ({ row }: any) => (
+        cell: ({ row }) => (
           <span className="text-sm font-medium text-foreground truncate block max-w-[300px]">
             {row.original.title}
           </span>
@@ -87,7 +88,7 @@ export function TableView({ projectId, projectPrefix, onTaskClick }: TableViewPr
       {
         accessorKey: 'statusId',
         header: 'Status',
-        cell: ({ row }: any) => {
+        cell: ({ row }) => {
           const status = row.original.statusId as TaskStatus | undefined;
           if (!status || typeof status === 'string') return <span className="text-xs text-muted-foreground">—</span>;
           return (
@@ -103,7 +104,7 @@ export function TableView({ projectId, projectPrefix, onTaskClick }: TableViewPr
       {
         accessorKey: 'priorityId',
         header: 'Priority',
-        cell: ({ row }: any) => {
+        cell: ({ row }) => {
           const priority = row.original.priorityId as TaskPriority | undefined;
           if (!priority || typeof priority === 'string') return <span className="text-xs text-muted-foreground">—</span>;
           return (
@@ -118,23 +119,22 @@ export function TableView({ projectId, projectPrefix, onTaskClick }: TableViewPr
       {
         accessorKey: 'assignees',
         header: 'Assignees',
-        cell: ({ row }: any) => {
+        cell: ({ row }) => {
           const assignees = row.original.assignees || [];
           if (assignees.length === 0) return <span className="text-xs text-muted-foreground">—</span>;
           return (
             <div className="flex -space-x-1">
-              {assignees.slice(0, 3).map((user: any) => (
-                <div
+              {assignees.slice(0, 3).map((user) => (
+                <Avatar
                   key={user._id}
-                  className="h-5 w-5 rounded-full bg-primary/10 border border-background flex items-center justify-center text-[8px] font-semibold text-primary"
+                  className="h-5 w-5 border border-background"
                   title={user.name}
                 >
-                  {user.avatarUrl ? (
-                    <img src={user.avatarUrl} alt={user.name} className="h-full w-full rounded-full object-cover" />
-                  ) : (
-                    user.name.charAt(0).toUpperCase()
-                  )}
-                </div>
+                  <AvatarImage src={user.avatarUrl} alt={user.name} />
+                  <AvatarFallback className="bg-primary/10 text-[8px] font-semibold text-primary">
+                    {user.name.charAt(0).toUpperCase()}
+                  </AvatarFallback>
+                </Avatar>
               ))}
               {assignees.length > 3 && (
                 <span className="text-[9px] text-muted-foreground ml-1">+{assignees.length - 3}</span>
@@ -149,12 +149,12 @@ export function TableView({ projectId, projectPrefix, onTaskClick }: TableViewPr
       {
         accessorKey: 'labels',
         header: 'Labels',
-        cell: ({ row }: any) => {
+        cell: ({ row }) => {
           const labels = row.original.labels || [];
           if (labels.length === 0) return <span className="text-xs text-muted-foreground">—</span>;
           return (
             <div className="flex gap-1 flex-wrap">
-              {labels.slice(0, 2).map((label: any) => (
+              {labels.slice(0, 2).map((label) => (
                 <span
                   key={label._id}
                   className="px-1.5 py-0.5 rounded text-[9px] font-medium"
@@ -174,7 +174,7 @@ export function TableView({ projectId, projectPrefix, onTaskClick }: TableViewPr
       {
         accessorKey: 'dueDate',
         header: 'Due Date',
-        cell: ({ row }: any) => {
+        cell: ({ row }) => {
           const dueDate = row.original.dueDate;
           if (!dueDate) return <span className="text-xs text-muted-foreground">—</span>;
           const isOverdue = !row.original.completedAt && new Date(dueDate) < new Date();
@@ -191,7 +191,7 @@ export function TableView({ projectId, projectPrefix, onTaskClick }: TableViewPr
       {
         accessorKey: 'createdAt',
         header: 'Created',
-        cell: ({ row }: any) => (
+        cell: ({ row }) => (
           <span className="text-xs text-muted-foreground">
             {new Date(row.original.createdAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
           </span>
@@ -202,7 +202,9 @@ export function TableView({ projectId, projectPrefix, onTaskClick }: TableViewPr
     [projectPrefix]
   );
 
-  const table = useReactTable({
+  // TanStack Table returns unstable function identities; React Compiler skips memoization.
+  // eslint-disable-next-line react-hooks/incompatible-library -- useReactTable API
+  const table = useReactTable<Task>({
     data: tasks,
     columns,
     state: { sorting, rowSelection },
@@ -241,9 +243,9 @@ export function TableView({ projectId, projectPrefix, onTaskClick }: TableViewPr
           <table className="w-full">
             {/* Header */}
             <thead>
-              {table.getHeaderGroups().map((headerGroup: any) => (
+              {table.getHeaderGroups().map((headerGroup) => (
                 <tr key={headerGroup.id} className="border-b border-border bg-secondary/30">
-                  {headerGroup.headers.map((header: any) => (
+                  {headerGroup.headers.map((header) => (
                     <th
                       key={header.id}
                       className="px-3 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wider text-muted-foreground"
@@ -278,7 +280,7 @@ export function TableView({ projectId, projectPrefix, onTaskClick }: TableViewPr
 
             {/* Body */}
             <tbody>
-              {table.getRowModel().rows.map((row: any) => (
+              {table.getRowModel().rows.map((row) => (
                 <tr
                   key={row.id}
                   onClick={() => onTaskClick?.(row.original)}
@@ -287,7 +289,7 @@ export function TableView({ projectId, projectPrefix, onTaskClick }: TableViewPr
                     ${row.getIsSelected() ? 'bg-primary/5' : ''}
                   `}
                 >
-                  {row.getVisibleCells().map((cell: any) => (
+                  {row.getVisibleCells().map((cell) => (
                     <td
                       key={cell.id}
                       className="px-3 py-2.5"

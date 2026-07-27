@@ -249,6 +249,81 @@ export class WorkspaceService {
 
     return members;
   }
+
+  /**
+   * Get a single workspace by ID
+   */
+  async getWorkspaceById(workspaceId: string, userId: string): Promise<IWorkspace> {
+    const workspace = await this.repository.findWorkspaceById(workspaceId);
+    if (!workspace) {
+      throw new AppError('Workspace not found.', 404);
+    }
+
+    const isMember = await this.checkMembership(workspaceId, userId);
+    if (!isMember) {
+      throw new AppError('Access denied. You are not a member of this workspace.', 403);
+    }
+
+    return workspace;
+  }
+
+  /**
+   * Update workspace name/description
+   */
+  async updateWorkspace(
+    workspaceId: string,
+    userId: string,
+    data: { name?: string; description?: string }
+  ): Promise<IWorkspace> {
+    const workspace = await this.repository.findWorkspaceById(workspaceId);
+    if (!workspace) {
+      throw new AppError('Workspace not found.', 404);
+    }
+
+    const isMember = await this.checkMembership(workspaceId, userId);
+    if (!isMember) {
+      throw new AppError('Access denied. You are not a member of this workspace.', 403);
+    }
+
+    if (data.name !== undefined) workspace.name = data.name.trim();
+    if (data.description !== undefined) workspace.description = data.description.trim();
+    workspace.updatedBy = userId as any;
+
+    await this.repository.saveWorkspace(workspace);
+
+    await this.activityService.logActivity({
+      workspaceId: workspace.id,
+      userId: userId as any,
+      action: 'workspace.updated',
+      details: { name: workspace.name },
+    });
+
+    return workspace;
+  }
+
+  /**
+   * Soft-delete a workspace
+   */
+  async deleteWorkspace(workspaceId: string, userId: string): Promise<void> {
+    const workspace = await this.repository.findWorkspaceById(workspaceId);
+    if (!workspace) {
+      throw new AppError('Workspace not found.', 404);
+    }
+
+    const isMember = await this.checkMembership(workspaceId, userId);
+    if (!isMember) {
+      throw new AppError('Access denied. You are not a member of this workspace.', 403);
+    }
+
+    await workspace.softDelete(userId);
+
+    await this.activityService.logActivity({
+      workspaceId: workspace.id,
+      userId: userId as any,
+      action: 'workspace.deleted',
+      details: { name: workspace.name },
+    });
+  }
 }
 
 export default WorkspaceService;

@@ -11,6 +11,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { apiClient } from '@/services/api-client';
 import { useAuthStore } from '@/store/auth-store';
+import { getApiErrorMessage } from '@/utils/api-error';
 
 export function LoginForm() {
   const router = useRouter();
@@ -46,13 +47,10 @@ export function LoginForm() {
       setAuth(user, accessToken);
 
       // Redirect to dashboard/home page
-      router.push('/');
+      router.push('/dashboard');
       router.refresh();
-    } catch (err: any) {
-      setError(
-        err.response?.data?.message ||
-          'Failed to sign in. Please verify your credentials.'
-      );
+    } catch (err: unknown) {
+      setError(getApiErrorMessage(err, 'Failed to sign in. Please verify your credentials.'));
     } finally {
       setIsLoading(false);
     }

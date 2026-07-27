@@ -77,8 +77,7 @@ const invitationSchema = new Schema<IInvitation>(
   }
 );
 
-// Indexes
-invitationSchema.index({ token: 1 });
+// Indexes (token index comes from field `unique: true`)
 invitationSchema.index({ email: 1, workspaceId: 1 });
 invitationSchema.index({ deletedAt: 1 });
 

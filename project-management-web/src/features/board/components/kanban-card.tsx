@@ -5,6 +5,7 @@ import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { Calendar, Clock } from 'lucide-react';
 import { Task, TaskPriority } from '@/services/task-service';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 
 interface KanbanCardProps {
   task: Task;
@@ -98,17 +99,16 @@ export function KanbanCard({ task, projectPrefix, onClick }: KanbanCardProps) {
         {/* Assignees */}
         <div className="flex -space-x-1.5">
           {task.assignees?.slice(0, 3).map((user) => (
-            <div
+            <Avatar
               key={user._id}
-              className="h-5 w-5 rounded-full bg-primary/10 border border-background flex items-center justify-center text-[8px] font-semibold text-primary"
+              className="h-5 w-5 border border-background"
               title={user.name}
             >
-              {user.avatarUrl ? (
-                <img src={user.avatarUrl} alt={user.name} className="h-full w-full rounded-full object-cover" />
-              ) : (
-                user.name.charAt(0).toUpperCase()
-              )}
-            </div>
+              <AvatarImage src={user.avatarUrl} alt={user.name} />
+              <AvatarFallback className="bg-primary/10 text-[8px] font-semibold text-primary">
+                {user.name.charAt(0).toUpperCase()}
+              </AvatarFallback>
+            </Avatar>
           ))}
           {task.assignees && task.assignees.length > 3 && (
             <div className="h-5 w-5 rounded-full bg-secondary border border-background flex items-center justify-center text-[8px] text-muted-foreground">

@@ -26,7 +26,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
         // 4. Save fully authenticated state
         setAuth(user, accessToken);
-      } catch (error) {
+      } catch {
         // If refresh fails (e.g. no cookie or expired), clear state
         clearAuth();
       } finally {

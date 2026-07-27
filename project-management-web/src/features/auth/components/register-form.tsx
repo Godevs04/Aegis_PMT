@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { apiClient } from '@/services/api-client';
+import { getApiErrorMessage } from '@/utils/api-error';
 
 export function RegisterForm() {
   const [isLoading, setIsLoading] = useState(false);
@@ -41,11 +42,8 @@ export function RegisterForm() {
       });
 
       setSuccess(true);
-    } catch (err: any) {
-      setError(
-        err.response?.data?.message ||
-          'Failed to register. Please try again later.'
-      );
+    } catch (err: unknown) {
+      setError(getApiErrorMessage(err, 'Failed to register. Please try again later.'));
     } finally {
       setIsLoading(false);
     }

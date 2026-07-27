@@ -3,6 +3,7 @@
 import React from 'react';
 import { Calendar } from 'lucide-react';
 import { Task, TaskStatus, TaskPriority } from '@/services/task-service';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 
 interface ListRowProps {
   task: Task;
@@ -72,17 +73,16 @@ export function ListRow({ task, projectPrefix, isSelected, onSelect, onClick }: 
       {/* Assignees */}
       <div className="flex -space-x-1 w-16 justify-end shrink-0">
         {task.assignees?.slice(0, 2).map((user) => (
-          <div
+          <Avatar
             key={user._id}
-            className="h-5 w-5 rounded-full bg-primary/10 border border-background flex items-center justify-center text-[8px] font-semibold text-primary"
+            className="h-5 w-5 border border-background"
             title={user.name}
           >
-            {user.avatarUrl ? (
-              <img src={user.avatarUrl} alt={user.name} className="h-full w-full rounded-full object-cover" />
-            ) : (
-              user.name.charAt(0).toUpperCase()
-            )}
-          </div>
+            <AvatarImage src={user.avatarUrl} alt={user.name} />
+            <AvatarFallback className="bg-primary/10 text-[8px] font-semibold text-primary">
+              {user.name.charAt(0).toUpperCase()}
+            </AvatarFallback>
+          </Avatar>
         ))}
         {task.assignees && task.assignees.length > 2 && (
           <div className="h-5 w-5 rounded-full bg-secondary border border-background flex items-center justify-center text-[8px] text-muted-foreground">

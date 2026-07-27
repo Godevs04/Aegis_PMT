@@ -2,10 +2,14 @@
 
 import React, { useState, useRef } from 'react';
 import { useForm } from 'react-hook-form';
-import { Loader2, Upload, Globe } from 'lucide-react';
+import { useTheme } from 'next-themes';
+import { Loader2, Upload, Globe, Palette } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+import { ThemeSelector } from '@/components/theme-toggle';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useAuthStore } from '@/store/auth-store';
 import { apiClient } from '@/services/api-client';
 
@@ -14,6 +18,7 @@ interface ProfileFormValues {
   bio: string;
   timezone: string;
   language: string;
+  theme: 'dark' | 'light' | 'system';
 }
 
 const TIMEZONES = [
@@ -24,11 +29,15 @@ const TIMEZONES = [
 
 export default function ProfileSettingsPage() {
   const { user, setAuth, accessToken } = useAuthStore();
+  const { setTheme } = useTheme();
   const [isSaving, setIsSaving] = useState(false);
   const [success, setSuccess] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [avatarPreview, setAvatarPreview] = useState<string | null>(user?.avatarUrl || null);
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
+  const [selectedTheme, setSelectedTheme] = useState<'dark' | 'light' | 'system'>(
+    user?.theme || 'system'
+  );
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const { register, handleSubmit, formState: { errors, isDirty } } = useForm<ProfileFormValues>({
@@ -37,6 +46,7 @@ export default function ProfileSettingsPage() {
       bio: user?.bio || '',
       timezone: user?.timezone || 'UTC',
       language: user?.language || 'en',
+      theme: user?.theme || 'system',
     },
   });
 
@@ -58,22 +68,30 @@ export default function ProfileSettingsPage() {
     try {
       const formData = new FormData();
       formData.append('name', data.name);
+      formData.append('bio', data.bio || '');
+      formData.append('timezone', data.timezone);
+      formData.append('language', data.language);
+      formData.append('theme', selectedTheme);
       if (avatarFile) formData.append('avatar', avatarFile);
 
-      // Update profile (avatar + name)
       await apiClient.patch('/users/profile', formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
       });
 
-      // Refresh user data
+      setTheme(selectedTheme);
+
       const userResponse = await apiClient.get('/users/me');
       const updatedUser = userResponse.data.data;
       if (accessToken) setAuth(updatedUser, accessToken);
 
       setSuccess('Profile updated successfully.');
       setAvatarFile(null);
-    } catch (err: any) {
-      setError(err.response?.data?.message || 'Failed to update profile.');
+    } catch (err: unknown) {
+      const message =
+        err && typeof err === 'object' && 'response' in err
+          ? (err as { response?: { data?: { message?: string } } }).response?.data?.message
+          : undefined;
+      setError(message || 'Failed to update profile.');
     } finally {
       setIsSaving(false);
     }
@@ -101,13 +119,14 @@ export default function ProfileSettingsPage() {
             <button
               type="button"
               onClick={() => fileInputRef.current?.click()}
-              className="relative group h-16 w-16 rounded-full bg-secondary border-2 border-dashed border-border hover:border-primary/50 transition-colors flex items-center justify-center overflow-hidden"
+              className="relative group h-16 w-16 rounded-full border-2 border-dashed border-border hover:border-primary/50 transition-colors overflow-hidden"
             >
-              {avatarPreview ? (
-                <img src={avatarPreview} alt="Avatar" className="h-full w-full object-cover rounded-full" />
-              ) : (
-                <Upload className="h-5 w-5 text-muted-foreground group-hover:text-primary" />
-              )}
+              <Avatar className="h-full w-full">
+                <AvatarImage src={avatarPreview || undefined} alt="Avatar" />
+                <AvatarFallback className="bg-secondary">
+                  <Upload className="h-5 w-5 text-muted-foreground group-hover:text-primary" />
+                </AvatarFallback>
+              </Avatar>
             </button>
             <div>
               <p className="text-xs text-foreground font-medium">Upload a new avatar</p>
@@ -129,19 +148,19 @@ export default function ProfileSettingsPage() {
 
           <div className="space-y-1.5">
             <Label htmlFor="bio">Bio</Label>
-            <Input id="bio" placeholder="What do you do?" {...register('bio', { maxLength: { value: 300, message: 'Max 300 chars' } })} />
+            <Textarea id="bio" placeholder="What do you do?" {...register('bio', { maxLength: { value: 300, message: 'Max 300 chars' } })} />
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-1.5">
               <Label htmlFor="timezone"><Globe className="inline h-3.5 w-3.5 mr-1" />Timezone</Label>
-              <select id="timezone" className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm" {...register('timezone')}>
+              <select id="timezone" className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm" {...register('timezone')}>
                 {TIMEZONES.map((tz) => <option key={tz} value={tz}>{tz.replace(/_/g, ' ')}</option>)}
               </select>
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="language">Language</Label>
-              <select id="language" className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm" {...register('language')}>
+              <select id="language" className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm" {...register('language')}>
                 <option value="en">English</option>
                 <option value="es">Spanish</option>
                 <option value="fr">French</option>
@@ -152,8 +171,23 @@ export default function ProfileSettingsPage() {
           </div>
         </div>
 
+        {/* Appearance */}
+        <div className="p-6 rounded-xl border border-border bg-card/50 space-y-4">
+          <h2 className="text-sm font-semibold text-foreground flex items-center gap-1.5">
+            <Palette className="h-3.5 w-3.5" /> Appearance
+          </h2>
+          <p className="text-xs text-muted-foreground">Choose how Aegis looks for you.</p>
+          <ThemeSelector
+            value={selectedTheme}
+            onChange={(theme) => {
+              setSelectedTheme(theme);
+              setTheme(theme);
+            }}
+          />
+        </div>
+
         <div className="flex justify-end">
-          <Button type="submit" disabled={isSaving && !isDirty && !avatarFile}>
+          <Button type="submit" disabled={isSaving && !isDirty && !avatarFile && selectedTheme === (user?.theme || 'system')}>
             {isSaving ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Saving...</> : 'Save Changes'}
           </Button>
         </div>

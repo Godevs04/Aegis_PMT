@@ -1,9 +1,9 @@
 'use client';
 
 import React, { useMemo, useState } from 'react';
-import { ChevronDown, ChevronRight, Loader2, Trash2, ArrowRight } from 'lucide-react';
+import { ChevronDown, ChevronRight, Loader2, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Task, TaskStatus } from '@/services/task-service';
+import { Task } from '@/services/task-service';
 import { useTasksQuery, useStatusesQuery, useBulkUpdateMutation, useDeleteTaskMutation } from '@/hooks/use-tasks';
 import { useWorkspaceStore } from '@/store/workspace-store';
 import { ListRow } from './list-row';
@@ -29,8 +29,8 @@ export function ListView({ projectId, projectPrefix, onTaskClick }: ListViewProp
   const bulkUpdateMutation = useBulkUpdateMutation();
   const deleteTaskMutation = useDeleteTaskMutation();
 
-  const statuses: TaskStatus[] = statusesData || [];
-  const tasks: Task[] = tasksData?.data || [];
+  const statuses = useMemo(() => statusesData ?? [], [statusesData]);
+  const tasks = useMemo(() => tasksData?.data ?? [], [tasksData?.data]);
 
   // Group tasks by status
   const tasksByStatus = useMemo(() => {

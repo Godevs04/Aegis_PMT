@@ -6,6 +6,7 @@ import { useWorkspaceStore } from '@/store/workspace-store';
 import { useWorkspacesQuery } from '@/hooks/use-workspaces';
 import { useSidebar } from './sidebar-context';
 import { CreateWorkspaceModal } from '@/features/workspaces/components/create-workspace-modal';
+import type { Workspace } from '@/services/workspace-service';
 
 export function WorkspaceSwitcher() {
   const [isOpen, setIsOpen] = useState(false);
@@ -14,7 +15,7 @@ export function WorkspaceSwitcher() {
   const { currentWorkspaceId, setCurrentWorkspaceId } = useWorkspaceStore();
   const { data: workspaces, isLoading } = useWorkspacesQuery();
 
-  const currentWorkspace = workspaces?.find((ws: any) => ws._id === currentWorkspaceId);
+  const currentWorkspace = workspaces?.find((ws: Workspace) => ws._id === currentWorkspaceId);
 
   // Auto-select first workspace if none selected
   React.useEffect(() => {
@@ -73,7 +74,7 @@ export function WorkspaceSwitcher() {
             <div className="fixed inset-0 z-40" onClick={() => setIsOpen(false)} />
             <div className="absolute left-0 right-0 top-full mt-1 z-50 rounded-lg border border-border bg-popover shadow-xl overflow-hidden">
               <div className="py-1 max-h-[240px] overflow-y-auto">
-                {workspaces?.map((ws: any) => (
+                {workspaces?.map((ws: Workspace) => (
                   <button
                     key={ws._id}
                     onClick={() => handleSelect(ws._id)}

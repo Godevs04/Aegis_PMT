@@ -10,16 +10,19 @@ import { useWorkspaceStore } from '@/store/workspace-store';
 import { apiClient } from '@/services/api-client';
 import { useQueryClient } from '@tanstack/react-query';
 import { WORKSPACES_QUERY_KEY } from '@/hooks/use-workspaces';
+import { getApiErrorMessage } from '@/utils/api-error';
+import type { Workspace } from '@/services/workspace-service';
 
 interface WorkspaceFormValues {
   name: string;
   description: string;
 }
 
+type WorkspaceDetails = Workspace & { description?: string };
+
 export default function WorkspaceSettingsPage() {
   const { currentWorkspaceId } = useWorkspaceStore();
   const queryClient = useQueryClient();
-  const [workspace, setWorkspace] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -44,10 +47,9 @@ export default function WorkspaceSettingsPage() {
       try {
         // Use the workspaces list to find current
         const response = await apiClient.get('/workspaces');
-        const workspaces = response.data.data;
-        const current = workspaces.find((ws: any) => ws._id === currentWorkspaceId);
+        const workspaces = response.data.data as WorkspaceDetails[];
+        const current = workspaces.find((ws) => ws._id === currentWorkspaceId);
         if (current) {
-          setWorkspace(current);
           reset({ name: current.name, description: current.description || '' });
         }
       } catch {
@@ -71,8 +73,8 @@ export default function WorkspaceSettingsPage() {
       });
       setSuccessMessage('Workspace settings saved successfully.');
       queryClient.invalidateQueries({ queryKey: WORKSPACES_QUERY_KEY });
-    } catch (err: any) {
-      setError(err.response?.data?.message || 'Failed to update workspace.');
+    } catch (err: unknown) {
+      setError(getApiErrorMessage(err, 'Failed to update workspace.'));
     } finally {
       setIsSaving(false);
     }
@@ -85,8 +87,8 @@ export default function WorkspaceSettingsPage() {
       await apiClient.delete(`/workspaces/${currentWorkspaceId}`);
       queryClient.invalidateQueries({ queryKey: WORKSPACES_QUERY_KEY });
       window.location.href = '/';
-    } catch (err: any) {
-      setError(err.response?.data?.message || 'Failed to delete workspace.');
+    } catch (err: unknown) {
+      setError(getApiErrorMessage(err, 'Failed to delete workspace.'));
       setIsDeleting(false);
     }
   };

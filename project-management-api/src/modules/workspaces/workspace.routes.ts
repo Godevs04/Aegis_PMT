@@ -20,13 +20,35 @@ const controller = new WorkspaceController();
 // All routes require authentication
 router.use(protect);
 
-// Create workspace — any authenticated user can create (workspace:create checked at org level)
+// Create workspace
 router.post('/', validate(createWorkspaceSchema), controller.createWorkspace);
 
-// List user's workspaces — no permission check needed (returns only user's own)
+// List user's workspaces
 router.get('/', controller.getMyWorkspaces);
 
-// Invite a member — requires workspace:invite permission
+// Accept invitation
+router.post('/accept-invite', validate(acceptInvitationSchema), controller.acceptInvitation);
+
+// Get / update / delete workspace
+router.get(
+  '/:workspaceId',
+  requireWorkspaceMember(workspaceFromParams),
+  controller.getWorkspace
+);
+
+router.patch(
+  '/:workspaceId',
+  authorize(WorkspacePermissions.MANAGE_SETTINGS, workspaceFromParams),
+  controller.updateWorkspace
+);
+
+router.delete(
+  '/:workspaceId',
+  authorize(WorkspacePermissions.DELETE, workspaceFromParams),
+  controller.deleteWorkspace
+);
+
+// Invite a member
 router.post(
   '/:workspaceId/invite',
   authorize(WorkspacePermissions.INVITE, workspaceFromParams),
@@ -34,10 +56,7 @@ router.post(
   controller.inviteMember
 );
 
-// Accept invitation — any authenticated user (token validates itself)
-router.post('/accept-invite', validate(acceptInvitationSchema), controller.acceptInvitation);
-
-// Get workspace members — requires workspace membership
+// Get workspace members
 router.get(
   '/:workspaceId/members',
   requireWorkspaceMember(workspaceFromParams),

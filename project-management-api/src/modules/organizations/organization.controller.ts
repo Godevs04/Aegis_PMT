@@ -21,12 +21,15 @@ export class OrganizationController {
 
       sendResponse({
         res,
-        statusCode: 201,
+        statusCode: result.alreadyExisted ? 200 : 201,
         success: true,
-        message: 'Organization created successfully.',
+        message: result.alreadyExisted
+          ? 'You already belong to an organization.'
+          : 'Organization created successfully.',
         data: {
           organization: result.organization,
           workspaceId: result.workspaceId,
+          alreadyExisted: !!result.alreadyExisted,
         },
       });
     } catch (error) {

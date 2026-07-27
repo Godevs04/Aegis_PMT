@@ -12,9 +12,13 @@ export default function RootPage() {
   const router = useRouter();
   const { isAuthenticated, isLoading } = useAuthStore();
 
-  // If authenticated, Next.js will render the (dashboard)/page.tsx via the route group
-  // This page only shows for unauthenticated users
-  if (isLoading) {
+  React.useEffect(() => {
+    if (!isLoading && isAuthenticated) {
+      router.replace('/dashboard');
+    }
+  }, [isLoading, isAuthenticated, router]);
+
+  if (isLoading || isAuthenticated) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-zinc-950">
         <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />

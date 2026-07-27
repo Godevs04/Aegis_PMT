@@ -7,10 +7,18 @@ export const NOTIFICATIONS_QUERY_KEY = 'notifications';
 /**
  * Hook to retrieve workspace activities
  */
-export function useWorkspaceActivitiesQuery(workspaceId: string | null) {
+export function useWorkspaceActivitiesQuery(
+  workspaceId: string | null,
+  options?: { projectId?: string; page?: number; limit?: number }
+) {
   return useQuery({
-    queryKey: [ACTIVITIES_QUERY_KEY, workspaceId],
-    queryFn: () => activityService.getWorkspaceTimeline(workspaceId || ''),
+    queryKey: [ACTIVITIES_QUERY_KEY, workspaceId, options],
+    queryFn: () =>
+      activityService.getWorkspaceTimeline(workspaceId || '', {
+        page: options?.page,
+        limit: options?.limit,
+        projectId: options?.projectId,
+      }),
     enabled: !!workspaceId,
   });
 }

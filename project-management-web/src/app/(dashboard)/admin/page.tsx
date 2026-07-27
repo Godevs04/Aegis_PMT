@@ -18,7 +18,9 @@ import {
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { apiClient } from '@/services/api-client';
+import { getApiErrorMessage } from '@/utils/api-error';
 
 interface SystemHealth {
   status: string;
@@ -63,8 +65,8 @@ export default function AdminPage() {
         ]);
         setHealth(healthRes.data.data);
         setAnalytics(analyticsRes.data.data);
-      } catch (err: any) {
-        setError(err.response?.data?.message || 'Failed to load admin data. You may not have admin access.');
+      } catch (err: unknown) {
+        setError(getApiErrorMessage(err, 'Failed to load admin data. You may not have admin access.'));
       } finally {
         setIsLoading(false);
       }
@@ -93,8 +95,8 @@ export default function AdminPage() {
     try {
       await apiClient.post(`/admin/users/${userId}/suspend`);
       setUsers((prev) => prev.filter((u) => u._id !== userId));
-    } catch (err: any) {
-      alert(err.response?.data?.message || 'Failed to suspend user.');
+    } catch (err: unknown) {
+      alert(getApiErrorMessage(err, 'Failed to suspend user.'));
     }
   };
 
@@ -205,9 +207,12 @@ export default function AdminPage() {
                 <tr key={u._id} className="border-b border-border/50 hover:bg-secondary/10">
                   <td className="px-5 py-3">
                     <div className="flex items-center gap-2">
-                      <div className="h-7 w-7 rounded-full bg-primary/10 flex items-center justify-center text-[10px] font-bold text-primary">
-                        {u.avatarUrl ? <img src={u.avatarUrl} alt="" className="h-full w-full rounded-full object-cover" /> : u.name.charAt(0).toUpperCase()}
-                      </div>
+                      <Avatar className="h-7 w-7">
+                        <AvatarImage src={u.avatarUrl} alt={u.name} />
+                        <AvatarFallback className="bg-primary/10 text-[10px] font-bold text-primary">
+                          {u.name.charAt(0).toUpperCase()}
+                        </AvatarFallback>
+                      </Avatar>
                       <span className="text-xs font-medium text-foreground">{u.name}</span>
                     </div>
                   </td>

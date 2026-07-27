@@ -8,6 +8,10 @@ export const updateProfileSchema = z.object({
       .max(50, 'Name must not exceed 50 characters')
       .optional(),
     email: z.string().email('Invalid email address').optional(),
+    bio: z.string().max(300, 'Bio must not exceed 300 characters').optional(),
+    timezone: z.string().max(100).optional(),
+    language: z.string().max(10).optional(),
+    theme: z.enum(['dark', 'light', 'system']).optional(),
   }),
 });
 

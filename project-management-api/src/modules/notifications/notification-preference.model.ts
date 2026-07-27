@@ -68,8 +68,7 @@ const notificationPreferenceSchema = new Schema<INotificationPreference>(
   }
 );
 
-// ─── Indexes ─────────────────────────────────────────────────────────────────
-notificationPreferenceSchema.index({ userId: 1 }, { unique: true });
+// userId index comes from field `unique: true`
 
 export const NotificationPreference = model<INotificationPreference>(
   'NotificationPreference',

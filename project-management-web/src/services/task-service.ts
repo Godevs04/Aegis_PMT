@@ -36,7 +36,7 @@ export interface Task {
   _id: string;
   taskNumber: number;
   title: string;
-  description?: any;
+  description?: unknown;
   projectId: string | { _id: string; name: string };
   workspaceId: string;
   parentTaskId?: string;
@@ -62,7 +62,7 @@ export interface Task {
 
 export interface CreateTaskData {
   title: string;
-  description?: any;
+  description?: unknown;
   projectId: string;
   workspaceId: string;
   assignees?: string[];
@@ -160,7 +160,7 @@ export const taskService = {
   /**
    * Log time on a task
    */
-  async logTime(taskId: string, hours: number, description?: string): Promise<any> {
+  async logTime(taskId: string, hours: number, description?: string): Promise<unknown> {
     const response = await apiClient.post(`/tasks/${taskId}/time`, { hours, description });
     return response.data.data;
   },

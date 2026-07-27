@@ -10,11 +10,9 @@ import {
   useSensors,
   DragStartEvent,
   DragEndEvent,
-  DragOverEvent,
 } from '@dnd-kit/core';
-import { arrayMove } from '@dnd-kit/sortable';
 import { Loader2 } from 'lucide-react';
-import { Task, TaskStatus } from '@/services/task-service';
+import { Task } from '@/services/task-service';
 import { useTasksQuery, useStatusesQuery, useMoveTaskMutation } from '@/hooks/use-tasks';
 import { useWorkspaceStore } from '@/store/workspace-store';
 import { KanbanColumn } from './kanban-column';
@@ -40,8 +38,8 @@ export function KanbanBoard({ projectId, projectPrefix, onTaskClick, onQuickCrea
 
   const moveTaskMutation = useMoveTaskMutation();
 
-  const statuses: TaskStatus[] = statusesData || [];
-  const tasks: Task[] = tasksData?.data || [];
+  const statuses = useMemo(() => statusesData ?? [], [statusesData]);
+  const tasks = useMemo(() => tasksData?.data ?? [], [tasksData?.data]);
 
   // Group tasks by statusId
   const tasksByStatus = useMemo(() => {
@@ -120,7 +118,7 @@ export function KanbanBoard({ projectId, projectPrefix, onTaskClick, onQuickCrea
     });
   };
 
-  const handleDragOver = (_event: DragOverEvent) => {
+  const handleDragOver = () => {
     // Could be used for real-time visual feedback
   };
 

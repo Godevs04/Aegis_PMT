@@ -1,11 +1,14 @@
 'use client';
 
 import React from 'react';
+import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { Bell, Menu, Search } from 'lucide-react';
 import { useSidebar } from './sidebar-context';
 import { useAuthStore } from '@/store/auth-store';
 import { useUnreadCountQuery } from '@/hooks/use-notifications';
+import { ThemeToggle } from '@/components/theme-toggle';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 
 /**
  * Breadcrumb mapping from pathname segments to human-readable labels.
@@ -30,7 +33,7 @@ export function Header() {
   // Generate breadcrumbs from pathname
   const segments = pathname.split('/').filter(Boolean);
   const breadcrumbs = segments.length === 0
-    ? [{ label: 'Dashboard', href: '/' }]
+    ? [{ label: 'Dashboard', href: '/dashboard' }]
     : segments.map((segment, index) => ({
         label: BREADCRUMB_LABELS[segment] || segment.replace(/-/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()),
         href: '/' + segments.slice(0, index + 1).join('/'),
@@ -59,12 +62,12 @@ export function Header() {
                   {crumb.label}
                 </span>
               ) : (
-                <a
+                <Link
                   href={crumb.href}
                   className="text-muted-foreground hover:text-foreground transition-colors truncate max-w-[150px]"
                 >
                   {crumb.label}
-                </a>
+                </Link>
               )}
             </li>
           ))}
@@ -73,6 +76,8 @@ export function Header() {
 
       {/* Right actions */}
       <div className="flex items-center gap-2">
+        <ThemeToggle />
+
         {/* Search trigger */}
         <button
           onClick={() => {
@@ -91,29 +96,24 @@ export function Header() {
           title="Notifications"
         >
           <Bell className="h-4 w-4" />
-          {/* Unread indicator dot */}
           {(unreadCount ?? 0) > 0 && (
-            <span className="absolute top-1 right-1 h-2.5 w-2.5 rounded-full bg-primary text-[7px] font-bold text-white flex items-center justify-center">
+            <span className="absolute top-1 right-1 min-w-[10px] h-2.5 px-0.5 rounded-full bg-primary text-[7px] font-bold text-primary-foreground flex items-center justify-center">
               {unreadCount && unreadCount > 9 ? '9+' : unreadCount}
             </span>
           )}
         </button>
 
         {/* User avatar */}
-        <button
-          className="h-8 w-8 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center text-xs font-semibold text-primary overflow-hidden hover:ring-2 hover:ring-primary/30 transition-all"
+        <Link
+          href="/settings/profile"
+          className="hover:ring-2 hover:ring-primary/30 rounded-full transition-all"
           title={user?.name || 'Profile'}
         >
-          {user?.avatarUrl ? (
-            <img
-              src={user.avatarUrl}
-              alt={user.name}
-              className="h-full w-full object-cover rounded-full"
-            />
-          ) : (
-            <span>{user?.name?.charAt(0)?.toUpperCase() || 'U'}</span>
-          )}
-        </button>
+          <Avatar className="h-8 w-8 border border-primary/20">
+            <AvatarImage src={user?.avatarUrl} alt={user?.name || 'User'} />
+            <AvatarFallback>{user?.name?.charAt(0)?.toUpperCase() || 'U'}</AvatarFallback>
+          </Avatar>
+        </Link>
       </div>
     </header>
   );

@@ -2,12 +2,16 @@
 
 import React, { useState } from 'react';
 import { useParams } from 'next/navigation';
-import { Loader2, FolderKanban, ArrowLeft, LayoutGrid, List, Table } from 'lucide-react';
+import { Loader2, FolderKanban, ArrowLeft, LayoutGrid, List, Table, Plus } from 'lucide-react';
 import Link from 'next/link';
 import { useProjectQuery } from '@/hooks/use-projects';
 import { KanbanBoard } from '@/features/board/components/kanban-board';
 import { ListView } from '@/features/board/components/list-view';
 import { TableView } from '@/features/board/components/table-view';
+import { TaskDetailSheet } from '@/features/tasks/components/task-detail-sheet';
+import { CreateTaskDialog } from '@/features/tasks/components/create-task-dialog';
+import { Button } from '@/components/ui/button';
+import { Task } from '@/services/task-service';
 
 type ViewMode = 'board' | 'list' | 'table';
 
@@ -15,8 +19,20 @@ export default function ProjectBoardPage() {
   const params = useParams();
   const projectId = params.projectId as string;
   const [viewMode, setViewMode] = useState<ViewMode>('board');
+  const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
+  const [createOpen, setCreateOpen] = useState(false);
+  const [createStatusId, setCreateStatusId] = useState<string | undefined>();
 
   const { data: project, isLoading } = useProjectQuery(projectId);
+
+  const handleTaskClick = (task: Task) => {
+    setSelectedTaskId(task._id);
+  };
+
+  const handleQuickCreate = (statusId: string) => {
+    setCreateStatusId(statusId);
+    setCreateOpen(true);
+  };
 
   if (isLoading) {
     return (
@@ -45,11 +61,11 @@ export default function ProjectBoardPage() {
     <div className="flex flex-col h-full -m-6">
       {/* Project Header */}
       <div className="px-6 py-4 border-b border-border bg-card/30 shrink-0">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-3 min-w-0">
             <Link
               href="/projects"
-              className="h-8 w-8 rounded-md border border-border flex items-center justify-center text-muted-foreground hover:text-foreground hover:border-primary/50 transition-colors"
+              className="h-8 w-8 rounded-md border border-border flex items-center justify-center text-muted-foreground hover:text-foreground hover:border-primary/50 transition-colors shrink-0"
             >
               <ArrowLeft className="h-4 w-4" />
             </Link>
@@ -64,44 +80,51 @@ export default function ProjectBoardPage() {
             </div>
           </div>
 
-          {/* View Mode Toggle */}
-          <div className="flex items-center gap-1 bg-secondary/50 rounded-lg p-1">
-            <button
-              onClick={() => setViewMode('board')}
-              className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors ${
-                viewMode === 'board'
-                  ? 'bg-background text-foreground shadow-sm'
-                  : 'text-muted-foreground hover:text-foreground'
-              }`}
-              title="Board view"
-            >
-              <LayoutGrid className="h-3.5 w-3.5" />
-              <span className="hidden sm:inline">Board</span>
-            </button>
-            <button
-              onClick={() => setViewMode('list')}
-              className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors ${
-                viewMode === 'list'
-                  ? 'bg-background text-foreground shadow-sm'
-                  : 'text-muted-foreground hover:text-foreground'
-              }`}
-              title="List view"
-            >
-              <List className="h-3.5 w-3.5" />
-              <span className="hidden sm:inline">List</span>
-            </button>
-            <button
-              onClick={() => setViewMode('table')}
-              className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors ${
-                viewMode === 'table'
-                  ? 'bg-background text-foreground shadow-sm'
-                  : 'text-muted-foreground hover:text-foreground'
-              }`}
-              title="Table view"
-            >
-              <Table className="h-3.5 w-3.5" />
-              <span className="hidden sm:inline">Table</span>
-            </button>
+          <div className="flex items-center gap-2 shrink-0">
+            <Button size="sm" onClick={() => { setCreateStatusId(undefined); setCreateOpen(true); }}>
+              <Plus className="h-3.5 w-3.5 mr-1" />
+              Task
+            </Button>
+
+            {/* View Mode Toggle */}
+            <div className="flex items-center gap-1 bg-secondary/50 rounded-lg p-1">
+              <button
+                onClick={() => setViewMode('board')}
+                className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors ${
+                  viewMode === 'board'
+                    ? 'bg-background text-foreground shadow-sm'
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
+                title="Board view"
+              >
+                <LayoutGrid className="h-3.5 w-3.5" />
+                <span className="hidden sm:inline">Board</span>
+              </button>
+              <button
+                onClick={() => setViewMode('list')}
+                className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors ${
+                  viewMode === 'list'
+                    ? 'bg-background text-foreground shadow-sm'
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
+                title="List view"
+              >
+                <List className="h-3.5 w-3.5" />
+                <span className="hidden sm:inline">List</span>
+              </button>
+              <button
+                onClick={() => setViewMode('table')}
+                className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors ${
+                  viewMode === 'table'
+                    ? 'bg-background text-foreground shadow-sm'
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
+                title="Table view"
+              >
+                <Table className="h-3.5 w-3.5" />
+                <span className="hidden sm:inline">Table</span>
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -109,19 +132,47 @@ export default function ProjectBoardPage() {
       {/* View Content */}
       <div className="flex-1 overflow-hidden px-6 pt-4">
         {viewMode === 'board' && (
-          <KanbanBoard projectId={projectId} projectPrefix={project.prefix} />
+          <KanbanBoard
+            projectId={projectId}
+            projectPrefix={project.prefix}
+            onTaskClick={handleTaskClick}
+            onQuickCreate={handleQuickCreate}
+          />
         )}
         {viewMode === 'list' && (
           <div className="h-full overflow-y-auto">
-            <ListView projectId={projectId} projectPrefix={project.prefix} />
+            <ListView
+              projectId={projectId}
+              projectPrefix={project.prefix}
+              onTaskClick={handleTaskClick}
+            />
           </div>
         )}
         {viewMode === 'table' && (
           <div className="h-full overflow-y-auto">
-            <TableView projectId={projectId} projectPrefix={project.prefix} />
+            <TableView
+              projectId={projectId}
+              projectPrefix={project.prefix}
+              onTaskClick={handleTaskClick}
+            />
           </div>
         )}
       </div>
+
+      <TaskDetailSheet
+        taskId={selectedTaskId}
+        open={!!selectedTaskId}
+        onOpenChange={(open) => {
+          if (!open) setSelectedTaskId(null);
+        }}
+      />
+      <CreateTaskDialog
+        open={createOpen}
+        onOpenChange={setCreateOpen}
+        defaultProjectId={projectId}
+        defaultStatusId={createStatusId}
+        onCreated={(id) => setSelectedTaskId(id)}
+      />
     </div>
   );
 }

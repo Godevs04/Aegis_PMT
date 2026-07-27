@@ -44,4 +44,5 @@ export function getCurrentSocket(): Socket | null {
   return socket;
 }
 
-export default { getSocket, disconnectSocket, getCurrentSocket };
+const socketClient = { getSocket, disconnectSocket, getCurrentSocket };
+export default socketClient;

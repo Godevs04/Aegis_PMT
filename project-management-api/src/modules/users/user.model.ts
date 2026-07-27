@@ -137,7 +137,7 @@ const userSchema = new Schema<IUser>(
 );
 
 // ─── Indexes ─────────────────────────────────────────────────────────────────
-userSchema.index({ email: 1 });
+// email index comes from field `unique: true`
 userSchema.index({ verificationToken: 1 });
 userSchema.index({ passwordResetToken: 1 });
 userSchema.index({ deletedAt: 1 });

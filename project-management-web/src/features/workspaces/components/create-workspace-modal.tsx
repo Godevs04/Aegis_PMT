@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useCreateWorkspaceMutation } from '@/hooks/use-workspaces';
+import { getApiErrorMessage } from '@/utils/api-error';
 
 interface CreateWorkspaceFormValues {
   name: string;
@@ -37,8 +38,8 @@ export function CreateWorkspaceModal({ isOpen, onClose }: CreateWorkspaceModalPr
       await createMutation.mutateAsync({ name: data.name });
       reset();
       onClose();
-    } catch (err: any) {
-      setError(err.response?.data?.message || 'Failed to create workspace.');
+    } catch (err: unknown) {
+      setError(getApiErrorMessage(err, 'Failed to create workspace.'));
     }
   };
 

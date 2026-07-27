@@ -1,12 +1,13 @@
 'use client';
 
 import React, { useState } from 'react';
-import { useForm } from 'react-hook-form';
-import { Loader2, Lock, Eye, EyeOff, Shield } from 'lucide-react';
+import { useForm, useWatch } from 'react-hook-form';
+import { Loader2, Lock, Shield } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { apiClient } from '@/services/api-client';
+import { getApiErrorMessage } from '@/utils/api-error';
 
 interface PasswordFormValues {
   currentPassword: string;
@@ -20,11 +21,11 @@ export default function SecuritySettingsPage() {
   const [error, setError] = useState<string | null>(null);
   const [showPasswords, setShowPasswords] = useState(false);
 
-  const { register, handleSubmit, reset, watch, formState: { errors } } = useForm<PasswordFormValues>({
+  const { register, handleSubmit, reset, control, formState: { errors } } = useForm<PasswordFormValues>({
     defaultValues: { currentPassword: '', newPassword: '', confirmPassword: '' },
   });
 
-  const newPasswordValue = watch('newPassword');
+  const newPasswordValue = useWatch({ control, name: 'newPassword' });
 
   const onSubmit = async (data: PasswordFormValues) => {
     setIsSaving(true);
@@ -37,8 +38,8 @@ export default function SecuritySettingsPage() {
       });
       setSuccess('Password changed successfully. All other sessions have been invalidated.');
       reset();
-    } catch (err: any) {
-      setError(err.response?.data?.message || 'Failed to change password.');
+    } catch (err: unknown) {
+      setError(getApiErrorMessage(err, 'Failed to change password.'));
     } finally {
       setIsSaving(false);
     }

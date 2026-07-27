@@ -1,13 +1,15 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useForm } from 'react-hook-form';
-import { Loader2, Building2, Users, Check, User, ArrowLeft } from 'lucide-react';
+import { Loader2, Building2, Users, Check, ArrowLeft } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { apiClient } from '@/services/api-client';
+import { useAuthStore } from '@/store/auth-store';
+import { getApiErrorMessage } from '@/utils/api-error';
 
 type Mode = 'choose' | 'create' | 'join';
 
@@ -22,8 +24,10 @@ interface JoinOrgValues {
 
 export default function OnboardingOrganizationPage() {
   const router = useRouter();
+  const { accessToken, setAuth } = useAuthStore();
   const [mode, setMode] = useState<Mode>('choose');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isChecking, setIsChecking] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const createForm = useForm<CreateOrgValues>({
@@ -34,6 +38,37 @@ export default function OnboardingOrganizationPage() {
     defaultValues: { token: '' },
   });
 
+  // If user already has an org, skip this screen
+  useEffect(() => {
+    const checkExisting = async () => {
+      try {
+        const response = await apiClient.get('/users/onboarding-status');
+        if (response.data.data?.hasOrganization) {
+          // Refresh user so auth store reflects completed onboarding
+          const me = await apiClient.get('/users/me');
+          if (accessToken) setAuth(me.data.data, accessToken);
+          router.replace('/dashboard');
+          return;
+        }
+      } catch {
+        // Stay on page if check fails
+      } finally {
+        setIsChecking(false);
+      }
+    };
+    checkExisting();
+  }, [accessToken, router, setAuth]);
+
+  const finishOnboarding = async () => {
+    try {
+      const me = await apiClient.get('/users/me');
+      if (accessToken) setAuth(me.data.data, accessToken);
+    } catch {
+      // Still navigate — membership was created server-side
+    }
+    router.replace('/dashboard');
+  };
+
   const handleCreateOrg = async (data: CreateOrgValues) => {
     setIsSubmitting(true);
     setError(null);
@@ -42,9 +77,9 @@ export default function OnboardingOrganizationPage() {
         name: data.name,
         description: data.description,
       });
-      router.push('/');
-    } catch (err: any) {
-      setError(err.response?.data?.message || 'Failed to create organization.');
+      await finishOnboarding();
+    } catch (err: unknown) {
+      setError(getApiErrorMessage(err, 'Failed to create organization.'));
     } finally {
       setIsSubmitting(false);
     }
@@ -53,32 +88,50 @@ export default function OnboardingOrganizationPage() {
   const handleJoinOrg = async (data: JoinOrgValues) => {
     setIsSubmitting(true);
     setError(null);
+    const token = data.token.trim();
+    // Org names are not invite tokens — reject obvious mistakes early
+    if (token.includes(' ') || token.length < 16) {
+      setError(
+        'That looks like an organization name, not an invitation token. Ask your admin for the invite link/token, or create a new organization instead.'
+      );
+      setIsSubmitting(false);
+      return;
+    }
     try {
-      await apiClient.post(`/organizations/join/${data.token}`);
-      router.push('/');
-    } catch (err: any) {
-      setError(err.response?.data?.message || 'Invalid or expired invitation token.');
+      await apiClient.post(`/organizations/join/${encodeURIComponent(token)}`);
+      await finishOnboarding();
+    } catch (err: unknown) {
+      setError(
+        getApiErrorMessage(
+          err,
+          'Invalid or expired invitation token. Use the token from your invite email — not the organization name.'
+        )
+      );
     } finally {
       setIsSubmitting(false);
     }
   };
 
+  if (isChecking) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-background">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
   return (
-    <div className="relative flex min-h-screen flex-col items-center justify-center overflow-hidden py-12 px-4 sm:px-6 lg:px-8 bg-zinc-950">
-      {/* Background effects */}
+    <div className="relative flex min-h-screen flex-col items-center justify-center overflow-hidden py-12 px-4 sm:px-6 lg:px-8 bg-background">
       <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] rounded-full bg-primary/8 blur-[140px] pointer-events-none" />
-      <div className="absolute bottom-1/3 right-1/4 w-[300px] h-[300px] rounded-full bg-blue-500/5 blur-[100px] pointer-events-none" />
 
       <div className="relative z-10 w-full max-w-lg flex flex-col items-center">
-        {/* Logo */}
         <div className="flex items-center space-x-2 mb-6 select-none">
-          <div className="h-9 w-9 rounded-lg bg-primary flex items-center justify-center text-white font-bold text-xl shadow-lg shadow-primary/20">
+          <div className="h-9 w-9 rounded-lg bg-primary flex items-center justify-center text-primary-foreground font-bold text-xl shadow-lg shadow-primary/20">
             A
           </div>
-          <span className="text-xl font-bold tracking-tight text-white">Aegis</span>
+          <span className="text-xl font-bold tracking-tight text-foreground">Aegis</span>
         </div>
 
-        {/* Progress indicator */}
         <div className="flex items-center space-x-3 mb-8">
           <div className="flex items-center space-x-2">
             <div className="h-8 w-8 rounded-full bg-primary/20 border border-primary/40 flex items-center justify-center text-primary text-sm font-medium">
@@ -88,10 +141,10 @@ export default function OnboardingOrganizationPage() {
           </div>
           <div className="h-px w-8 bg-primary/40" />
           <div className="flex items-center space-x-2">
-            <div className="h-8 w-8 rounded-full bg-primary flex items-center justify-center text-white text-sm font-medium">
+            <div className="h-8 w-8 rounded-full bg-primary flex items-center justify-center text-primary-foreground text-sm font-medium">
               <Building2 className="h-4 w-4" />
             </div>
-            <span className="text-sm font-medium text-white">Organization</span>
+            <span className="text-sm font-medium text-foreground">Organization</span>
           </div>
           <div className="h-px w-8 bg-border" />
           <div className="flex items-center space-x-2">
@@ -102,7 +155,6 @@ export default function OnboardingOrganizationPage() {
           </div>
         </div>
 
-        {/* Main Card */}
         <div className="w-full p-8 rounded-2xl border border-border bg-card/50 backdrop-blur-md shadow-2xl">
           {error && (
             <div className="p-3 mb-4 rounded-md bg-destructive/10 border border-destructive/20 text-destructive text-xs text-center font-medium">
@@ -110,20 +162,18 @@ export default function OnboardingOrganizationPage() {
             </div>
           )}
 
-          {/* Choose Mode */}
           {mode === 'choose' && (
             <div className="space-y-6">
               <div className="text-center space-y-2">
-                <h1 className="text-2xl font-bold tracking-tight text-white">
+                <h1 className="text-2xl font-bold tracking-tight text-foreground">
                   Set Up Your Organization
                 </h1>
                 <p className="text-sm text-muted-foreground">
-                  Create a new organization or join an existing one
+                  Create a new organization once, or join with an invitation token from your admin.
                 </p>
               </div>
 
               <div className="grid gap-4">
-                {/* Create New */}
                 <button
                   type="button"
                   onClick={() => { setMode('create'); setError(null); }}
@@ -134,17 +184,16 @@ export default function OnboardingOrganizationPage() {
                       <Building2 className="h-5 w-5 text-primary" />
                     </div>
                     <div>
-                      <h3 className="text-sm font-semibold text-white mb-1">
+                      <h3 className="text-sm font-semibold text-foreground mb-1">
                         Create New Organization
                       </h3>
                       <p className="text-xs text-muted-foreground leading-relaxed">
-                        Start fresh with your own organization. You can invite team members later.
+                        Start your own organization. You only need to do this once — later logins go straight to the dashboard.
                       </p>
                     </div>
                   </div>
                 </button>
 
-                {/* Join Existing */}
                 <button
                   type="button"
                   onClick={() => { setMode('join'); setError(null); }}
@@ -155,11 +204,11 @@ export default function OnboardingOrganizationPage() {
                       <Users className="h-5 w-5 text-blue-400" />
                     </div>
                     <div>
-                      <h3 className="text-sm font-semibold text-white mb-1">
-                        Join Existing Organization
+                      <h3 className="text-sm font-semibold text-foreground mb-1">
+                        Join with Invitation Token
                       </h3>
                       <p className="text-xs text-muted-foreground leading-relaxed">
-                        Have an invitation token? Enter it to join your team.
+                        Paste the invite token from your email — not the organization name.
                       </p>
                     </div>
                   </div>
@@ -168,20 +217,19 @@ export default function OnboardingOrganizationPage() {
             </div>
           )}
 
-          {/* Create Organization Form */}
           {mode === 'create' && (
             <div className="space-y-5">
               <div className="flex items-center space-x-3">
                 <button
                   type="button"
                   onClick={() => { setMode('choose'); setError(null); }}
-                  className="h-8 w-8 rounded-md border border-border flex items-center justify-center text-muted-foreground hover:text-white hover:border-primary/50 transition-colors"
+                  className="h-8 w-8 rounded-md border border-border flex items-center justify-center text-muted-foreground hover:text-foreground hover:border-primary/50 transition-colors"
                 >
                   <ArrowLeft className="h-4 w-4" />
                 </button>
                 <div>
-                  <h2 className="text-lg font-bold text-white">Create Organization</h2>
-                  <p className="text-xs text-muted-foreground">This will also create your first workspace</p>
+                  <h2 className="text-lg font-bold text-foreground">Create Organization</h2>
+                  <p className="text-xs text-muted-foreground">This also creates your first workspace</p>
                 </div>
               </div>
 
@@ -228,20 +276,21 @@ export default function OnboardingOrganizationPage() {
             </div>
           )}
 
-          {/* Join Organization Form */}
           {mode === 'join' && (
             <div className="space-y-5">
               <div className="flex items-center space-x-3">
                 <button
                   type="button"
                   onClick={() => { setMode('choose'); setError(null); }}
-                  className="h-8 w-8 rounded-md border border-border flex items-center justify-center text-muted-foreground hover:text-white hover:border-primary/50 transition-colors"
+                  className="h-8 w-8 rounded-md border border-border flex items-center justify-center text-muted-foreground hover:text-foreground hover:border-primary/50 transition-colors"
                 >
                   <ArrowLeft className="h-4 w-4" />
                 </button>
                 <div>
-                  <h2 className="text-lg font-bold text-white">Join Organization</h2>
-                  <p className="text-xs text-muted-foreground">Enter the invitation token you received</p>
+                  <h2 className="text-lg font-bold text-foreground">Join Organization</h2>
+                  <p className="text-xs text-muted-foreground">
+                    Use the invitation token from your invite email — not the org name
+                  </p>
                 </div>
               </div>
 
@@ -250,7 +299,7 @@ export default function OnboardingOrganizationPage() {
                   <Label htmlFor="token">Invitation Token</Label>
                   <Input
                     id="token"
-                    placeholder="Paste your invitation token here"
+                    placeholder="Paste invitation token (long code from email)"
                     disabled={isSubmitting}
                     {...joinForm.register('token', {
                       required: 'Invitation token is required',
@@ -259,6 +308,9 @@ export default function OnboardingOrganizationPage() {
                   {joinForm.formState.errors.token && (
                     <p className="text-xs text-destructive">{joinForm.formState.errors.token.message}</p>
                   )}
+                  <p className="text-[11px] text-muted-foreground">
+                    Entering an organization name here will not work. If you don&apos;t have a token, go back and create a new organization instead.
+                  </p>
                 </div>
 
                 <Button type="submit" className="w-full" disabled={isSubmitting}>

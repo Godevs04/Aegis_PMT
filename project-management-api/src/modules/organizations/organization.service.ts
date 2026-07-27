@@ -20,63 +20,138 @@ export class OrganizationService {
    * - Default workspace
    * - WorkspaceMember (creator as Workspace Admin)
    * - Default task statuses/priorities for the workspace
+   *
+   * Idempotent: if the user already belongs to an org, returns that instead of creating another.
    */
   async create(
     data: { name: string; description?: string },
     userId: string
-  ): Promise<{ organization: IOrganization; workspaceId: string }> {
-    // Create organization
-    const organization = await Organization.create({
-      name: data.name,
-      description: data.description || '',
-      ownerId: userId,
+  ): Promise<{ organization: IOrganization; workspaceId: string; alreadyExisted?: boolean }> {
+    // Already a member? Don't force another org — return their first one.
+    const existingMembership = await OrganizationMember.findOne({
+      userId,
+      status: 'active',
+    });
+    if (existingMembership) {
+      const existingOrg = await Organization.findById(existingMembership.organizationId);
+      if (existingOrg) {
+        const workspaceId =
+          existingOrg.settings?.defaultWorkspaceId?.toString() ||
+          (await Workspace.findOne({ organizationId: existingOrg.id }))?.id;
+        if (!workspaceId) {
+          throw new AppError('Organization exists but has no workspace. Contact support.', 500);
+        }
+        return { organization: existingOrg, workspaceId, alreadyExisted: true };
+      }
+    }
+
+    // Owned an org without membership (repair path from older bugs)
+    const ownedOrg = await Organization.findOne({ ownerId: userId });
+    if (ownedOrg) {
+      await this.ensureOwnerMembership(ownedOrg.id, userId);
+      const workspaceId =
+        ownedOrg.settings?.defaultWorkspaceId?.toString() ||
+        (await Workspace.findOne({ organizationId: ownedOrg.id }))?.id;
+      if (!workspaceId) {
+        throw new AppError('Organization exists but has no workspace. Contact support.', 500);
+      }
+      return { organization: ownedOrg, workspaceId, alreadyExisted: true };
+    }
+
+    const ownerRole = await Role.findOne({ slug: SystemRole.ORG_OWNER, isSystem: true });
+    const wsAdminRole = await Role.findOne({ slug: SystemRole.WORKSPACE_ADMIN, isSystem: true });
+    if (!ownerRole || !wsAdminRole) {
+      throw new AppError(
+        'System roles are not seeded. Run `npm run seed:roles` in the API before creating organizations.',
+        500
+      );
+    }
+
+    const baseSlug = data.name
+      .toLowerCase()
+      .replace(/[^a-z0-9\s-]/g, '')
+      .replace(/\s+/g, '-')
+      .replace(/-+/g, '-')
+      .trim();
+
+    // If slug is taken by another org, ask for a different name (don't create duplicates)
+    const slugConflict = await Organization.findOne({ slug: baseSlug });
+    if (slugConflict) {
+      // Same user owns it → repair membership and reuse
+      if (slugConflict.ownerId.toString() === userId) {
+        await this.ensureOwnerMembership(slugConflict.id, userId);
+        const workspaceId =
+          slugConflict.settings?.defaultWorkspaceId?.toString() ||
+          (await Workspace.findOne({ organizationId: slugConflict.id }))?.id;
+        if (!workspaceId) {
+          throw new AppError('Organization exists but has no workspace. Contact support.', 500);
+        }
+        return { organization: slugConflict, workspaceId, alreadyExisted: true };
+      }
+      throw new AppError(
+        'An organization with this name already exists. Choose a different name, or join with an invitation token.',
+        409
+      );
+    }
+
+    let organization: IOrganization;
+    try {
+      organization = await Organization.create({
+        name: data.name,
+        slug: baseSlug,
+        description: data.description || '',
+        ownerId: userId,
+        createdBy: userId,
+      });
+    } catch (err: unknown) {
+      const mongoErr = err as { code?: number };
+      if (mongoErr?.code === 11000) {
+        throw new AppError(
+          'An organization with this name already exists. Choose a different name, or join with an invitation token.',
+          409
+        );
+      }
+      throw err;
+    }
+
+    await OrganizationMember.create({
+      userId,
+      organizationId: organization.id,
+      roleId: ownerRole.id,
+      status: 'active',
+      joinedAt: new Date(),
       createdBy: userId,
     });
 
-    // Add creator as OrganizationMember with org_owner role
-    const ownerRole = await Role.findOne({ slug: SystemRole.ORG_OWNER, isSystem: true });
-    if (ownerRole) {
-      await OrganizationMember.create({
-        userId,
-        organizationId: organization.id,
-        roleId: ownerRole.id,
-        status: 'active',
-        joinedAt: new Date(),
-        createdBy: userId,
-      });
-    }
-
-    // Create default workspace
     const workspace = await Workspace.create({
       name: `${data.name}`,
       organizationId: organization.id,
       createdBy: userId,
     });
 
-    // Add creator as WorkspaceMember with workspace_admin role
-    const wsAdminRole = await Role.findOne({ slug: SystemRole.WORKSPACE_ADMIN, isSystem: true });
-    if (wsAdminRole) {
-      await WorkspaceMember.create({
-        userId,
-        workspaceId: workspace.id,
-        roleId: wsAdminRole.id,
-        status: 'active',
-        joinedAt: new Date(),
-        createdBy: userId,
-      });
-    }
+    await WorkspaceMember.create({
+      userId,
+      workspaceId: workspace.id,
+      roleId: wsAdminRole.id,
+      status: 'active',
+      joinedAt: new Date(),
+      createdBy: userId,
+    });
 
-    // Seed default statuses and priorities for the workspace
     await seedWorkspaceDefaults(workspace.id, userId);
 
-    // Update org settings with default workspace
     organization.settings = {
       defaultWorkspaceId: workspace.id,
       allowPublicJoin: false,
     };
     await organization.save();
 
-    // Audit log
+    // Mark user onboarding as fully complete
+    await User.findByIdAndUpdate(userId, {
+      isOnboardingComplete: true,
+      onboardingStep: 2,
+    });
+
     auditLogService.log({
       organizationId: organization.id,
       entityType: 'Organization',
@@ -88,6 +163,40 @@ export class OrganizationService {
     });
 
     return { organization, workspaceId: workspace.id };
+  }
+
+  /**
+   * Ensure the user has an active org_owner membership (repairs legacy gaps).
+   */
+  private async ensureOwnerMembership(organizationId: string, userId: string): Promise<void> {
+    const existing = await OrganizationMember.findOne({
+      userId,
+      organizationId,
+      status: 'active',
+    });
+    if (existing) return;
+
+    const ownerRole = await Role.findOne({ slug: SystemRole.ORG_OWNER, isSystem: true });
+    if (!ownerRole) {
+      throw new AppError(
+        'System roles are not seeded. Run `npm run seed:roles` in the API.',
+        500
+      );
+    }
+
+    await OrganizationMember.create({
+      userId,
+      organizationId,
+      roleId: ownerRole.id,
+      status: 'active',
+      joinedAt: new Date(),
+      createdBy: userId,
+    });
+
+    await User.findByIdAndUpdate(userId, {
+      isOnboardingComplete: true,
+      onboardingStep: 2,
+    });
   }
 
   /**
@@ -353,6 +462,11 @@ export class OrganizationService {
     // Update invitation status
     invitation.status = 'accepted';
     await invitation.save();
+
+    await User.findByIdAndUpdate(userId, {
+      isOnboardingComplete: true,
+      onboardingStep: 2,
+    });
 
     return org;
   }

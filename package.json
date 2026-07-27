@@ -1,0 +1,26 @@
+{
+  "name": "aegis-project-management",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Aegis Project Management monorepo",
+  "scripts": {
+    "prepare": "husky",
+    "lint": "npm run lint --prefix project-management-web",
+    "lint:web": "npm run lint --prefix project-management-web",
+    "typecheck:api": "npm run build --prefix project-management-api",
+    "build:api": "npm run build --prefix project-management-api",
+    "build:web": "npm run build --prefix project-management-web"
+  },
+  "devDependencies": {
+    "husky": "^9.1.7",
+    "lint-staged": "^15.5.2"
+  },
+  "lint-staged": {
+    "project-management-api/src/**/*.{ts,js}": [
+      "bash -c 'cd project-management-api && npx tsc --noEmit'"
+    ],
+    "project-management-web/src/**/*.{ts,tsx,js,jsx}": [
+      "bash -c 'cd project-management-web && npx eslint --max-warnings=0'"
+    ]
+  }
+}

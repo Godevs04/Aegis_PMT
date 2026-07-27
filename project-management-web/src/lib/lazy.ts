@@ -11,12 +11,12 @@
  * Debounce a function call.
  * Used for search inputs, resize handlers, etc.
  */
-export function debounce<T extends (...args: any[]) => any>(
-  fn: T,
+export function debounce<Args extends unknown[]>(
+  fn: (...args: Args) => unknown,
   delay: number
-): (...args: Parameters<T>) => void {
+): (...args: Args) => void {
   let timer: NodeJS.Timeout;
-  return (...args: Parameters<T>) => {
+  return (...args: Args) => {
     clearTimeout(timer);
     timer = setTimeout(() => fn(...args), delay);
   };
@@ -26,12 +26,12 @@ export function debounce<T extends (...args: any[]) => any>(
  * Throttle a function call.
  * Used for scroll handlers, drag events, etc.
  */
-export function throttle<T extends (...args: any[]) => any>(
-  fn: T,
+export function throttle<Args extends unknown[]>(
+  fn: (...args: Args) => unknown,
   limit: number
-): (...args: Parameters<T>) => void {
+): (...args: Args) => void {
   let inThrottle = false;
-  return (...args: Parameters<T>) => {
+  return (...args: Args) => {
     if (!inThrottle) {
       fn(...args);
       inThrottle = true;
@@ -78,13 +78,13 @@ export function formatRelativeTime(date: string | Date): string {
 export const queryKeys = {
   tasks: {
     all: ['tasks'] as const,
-    list: (filters: Record<string, any>) => ['tasks', filters] as const,
+    list: (filters: Record<string, unknown>) => ['tasks', filters] as const,
     detail: (id: string) => ['tasks', 'detail', id] as const,
     subtasks: (parentId: string) => ['tasks', 'subtasks', parentId] as const,
   },
   projects: {
     all: ['projects'] as const,
-    list: (workspaceId: string, filters?: any) => ['projects', workspaceId, filters] as const,
+    list: (workspaceId: string, filters?: Record<string, unknown>) => ['projects', workspaceId, filters] as const,
     detail: (id: string) => ['projects', 'detail', id] as const,
     analytics: (id: string) => ['projects', 'analytics', id] as const,
   },

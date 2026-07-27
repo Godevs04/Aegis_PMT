@@ -36,11 +36,12 @@ export default function SprintsPage() {
   const { currentWorkspaceId } = useWorkspaceStore();
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
   const [showCreateForm, setShowCreateForm] = useState(false);
-  const [activeSprintId, setActiveSprintId] = useState<string | null>(null);
   const [showCompleted, setShowCompleted] = useState(false);
 
   const { data: projects, isLoading: isLoadingProjects } = useProjectsQuery(currentWorkspaceId);
-  const { data: sprints, isLoading: isLoadingSprints } = useSprintsQuery(selectedProjectId, currentWorkspaceId);
+  const effectiveProjectId = selectedProjectId ?? projects?.[0]?._id ?? null;
+  const { data: sprints, isLoading: isLoadingSprints } = useSprintsQuery(effectiveProjectId, currentWorkspaceId);
+  const activeSprintId = sprints?.find((s) => s.status === 'active')?._id ?? null;
   const { data: analytics } = useSprintAnalyticsQuery(activeSprintId);
 
   const createMutation = useCreateSprintMutation();
@@ -51,27 +52,12 @@ export default function SprintsPage() {
     defaultValues: { name: '', goal: '' },
   });
 
-  // Auto-select first project
-  React.useEffect(() => {
-    if (!selectedProjectId && projects && projects.length > 0) {
-      setSelectedProjectId(projects[0]._id);
-    }
-  }, [projects, selectedProjectId]);
-
-  // Find active sprint
-  React.useEffect(() => {
-    if (sprints) {
-      const active = sprints.find((s) => s.status === 'active');
-      setActiveSprintId(active?._id || null);
-    }
-  }, [sprints]);
-
   const onCreateSprint = async (data: CreateSprintFormValues) => {
-    if (!selectedProjectId || !currentWorkspaceId) return;
+    if (!effectiveProjectId || !currentWorkspaceId) return;
     await createMutation.mutateAsync({
       name: data.name,
       goal: data.goal || undefined,
-      projectId: selectedProjectId,
+      projectId: effectiveProjectId,
       workspaceId: currentWorkspaceId,
     });
     reset();
@@ -90,7 +76,7 @@ export default function SprintsPage() {
           <h1 className="text-xl font-bold text-foreground">Sprints</h1>
           <p className="text-sm text-muted-foreground mt-0.5">Plan and manage sprint iterations.</p>
         </div>
-        <Button size="sm" onClick={() => setShowCreateForm(true)} disabled={!selectedProjectId}>
+        <Button size="sm" onClick={() => setShowCreateForm(true)} disabled={!effectiveProjectId}>
           <Plus className="h-4 w-4 mr-1.5" />
           New Sprint
         </Button>
@@ -108,7 +94,7 @@ export default function SprintsPage() {
                 key={project._id}
                 onClick={() => setSelectedProjectId(project._id)}
                 className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
-                  selectedProjectId === project._id
+                  effectiveProjectId === project._id
                     ? 'bg-background text-foreground shadow-sm'
                     : 'text-muted-foreground hover:text-foreground'
                 }`}
@@ -232,7 +218,7 @@ export default function SprintsPage() {
       )}
 
       {/* Empty State */}
-      {!isLoadingSprints && (!sprints || sprints.length === 0) && selectedProjectId && (
+      {!isLoadingSprints && (!sprints || sprints.length === 0) && effectiveProjectId && (
         <div className="flex flex-col items-center justify-center py-16 text-center">
           <div className="h-14 w-14 rounded-2xl bg-secondary flex items-center justify-center mb-4">
             <Zap className="h-7 w-7 text-muted-foreground" />

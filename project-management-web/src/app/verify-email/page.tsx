@@ -5,30 +5,29 @@ import { useSearchParams } from 'next/navigation';
 import { CheckCircle2, XCircle, Loader2 } from 'lucide-react';
 import { apiClient } from '@/services/api-client';
 import { Button } from '@/components/ui/button';
+import { getApiErrorMessage } from '@/utils/api-error';
 
 function VerifyEmailContent() {
   const searchParams = useSearchParams();
   const token = searchParams.get('token');
-  
-  const [status, setStatus] = useState<'loading' | 'success' | 'error'>('loading');
-  const [message, setMessage] = useState('Verifying your email...');
+
+  const [status, setStatus] = useState<'loading' | 'success' | 'error'>(
+    () => (token ? 'loading' : 'error')
+  );
+  const [message, setMessage] = useState(() =>
+    token ? 'Verifying your email...' : 'Missing verification token.'
+  );
 
   useEffect(() => {
-    if (!token) {
-      setStatus('error');
-      setMessage('Missing verification token.');
-      return;
-    }
+    if (!token) return;
 
     const verifyToken = async () => {
       try {
         await apiClient.post(`/auth/verify-email?token=${token}`);
         setStatus('success');
-      } catch (err: any) {
+      } catch (err: unknown) {
         setStatus('error');
-        setMessage(
-          err.response?.data?.message || 'Token is invalid or expired.'
-        );
+        setMessage(getApiErrorMessage(err, 'Token is invalid or expired.'));
       }
     };
 

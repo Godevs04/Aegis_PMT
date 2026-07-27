@@ -2,12 +2,12 @@
 
 import React from 'react';
 import Link from 'next/link';
-import { User, Shield, Bell, Layers, Building2, ChevronRight } from 'lucide-react';
+import { User, Shield, Bell, Layers, BarChart3, ShieldCheck, ChevronRight } from 'lucide-react';
 
 const SETTINGS_SECTIONS = [
   {
     title: 'Profile',
-    description: 'Manage your name, avatar, bio, timezone, and language.',
+    description: 'Manage your name, avatar, theme, timezone, and language.',
     href: '/settings/profile',
     icon: User,
   },
@@ -28,6 +28,18 @@ const SETTINGS_SECTIONS = [
     description: 'Edit workspace name, description, and danger zone.',
     href: '/settings/workspace',
     icon: Layers,
+  },
+  {
+    title: 'Analytics',
+    description: 'Workspace health, project progress, and team workload.',
+    href: '/analytics',
+    icon: BarChart3,
+  },
+  {
+    title: 'Admin',
+    description: 'Platform health, users, and system management.',
+    href: '/admin',
+    icon: ShieldCheck,
   },
 ];
 

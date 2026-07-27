@@ -10,7 +10,6 @@ import {
   CheckSquare,
   TrendingUp,
   AlertTriangle,
-  Clock,
   Target,
   Zap,
 } from 'lucide-react';
@@ -112,7 +111,7 @@ export default function ProjectDashboardPage() {
             {sprints.length === 0 ? (
               <p className="text-xs text-muted-foreground text-center py-4">No sprints.</p>
             ) : (
-              sprints.map((sprint: any) => (
+              sprints.map((sprint) => (
                 <div key={sprint.id} className="flex items-center justify-between py-1">
                   <div className="flex items-center gap-2">
                     <Zap className={`h-3.5 w-3.5 ${sprint.status === 'active' ? 'text-primary' : 'text-muted-foreground'}`} />
@@ -134,7 +133,7 @@ export default function ProjectDashboardPage() {
             {milestones.length === 0 ? (
               <p className="text-xs text-muted-foreground text-center py-4">No milestones.</p>
             ) : (
-              milestones.map((m: any) => (
+              milestones.map((m) => (
                 <div key={m.id} className="space-y-1">
                   <div className="flex items-center justify-between">
                     <span className="text-xs text-foreground">{m.name}</span>
@@ -165,7 +164,7 @@ export default function ProjectDashboardPage() {
             <h2 className="text-sm font-semibold text-foreground">Recent Project Activity</h2>
           </div>
           <div className="px-5 py-3 space-y-3 max-h-[250px] overflow-y-auto">
-            {activities.map((activity: any) => (
+            {activities.map((activity) => (
               <div key={activity._id} className="flex items-center gap-2.5 text-xs">
                 <div className="h-5 w-5 rounded-full bg-primary/10 flex items-center justify-center text-[8px] font-bold text-primary shrink-0">
                   {activity.userId?.name?.charAt(0) || '?'}

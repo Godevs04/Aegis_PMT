@@ -141,6 +141,78 @@ export class WorkspaceController {
       next(error);
     }
   }
+
+  /**
+   * GET /api/workspaces/:workspaceId
+   */
+  async getWorkspace(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const user = req.user;
+      if (!user) throw new AppError('Authentication credentials not found.', 401);
+
+      const { workspaceId } = req.params;
+      const workspace = await workspaceService.getWorkspaceById(workspaceId, user.id);
+
+      sendResponse({
+        res,
+        statusCode: 200,
+        success: true,
+        message: 'Workspace retrieved successfully.',
+        data: workspace,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
+   * PATCH /api/workspaces/:workspaceId
+   */
+  async updateWorkspace(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const user = req.user;
+      if (!user) throw new AppError('Authentication credentials not found.', 401);
+
+      const { workspaceId } = req.params;
+      const { name, description } = req.body;
+      const workspace = await workspaceService.updateWorkspace(workspaceId, user.id, {
+        name,
+        description,
+      });
+
+      sendResponse({
+        res,
+        statusCode: 200,
+        success: true,
+        message: 'Workspace updated successfully.',
+        data: workspace,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
+   * DELETE /api/workspaces/:workspaceId
+   */
+  async deleteWorkspace(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const user = req.user;
+      if (!user) throw new AppError('Authentication credentials not found.', 401);
+
+      const { workspaceId } = req.params;
+      await workspaceService.deleteWorkspace(workspaceId, user.id);
+
+      sendResponse({
+        res,
+        statusCode: 200,
+        success: true,
+        message: 'Workspace deleted successfully.',
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
 }
 
 export default WorkspaceController;

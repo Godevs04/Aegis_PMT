@@ -6,9 +6,9 @@ declare module 'socket.io-client' {
   export interface Socket {
     id: string;
     connected: boolean;
-    on(event: string, callback: (...args: any[]) => void): Socket;
-    off(event: string, callback?: (...args: any[]) => void): Socket;
-    emit(event: string, ...args: any[]): Socket;
+    on(event: string, callback: (...args: unknown[]) => void): Socket;
+    off(event: string, callback?: (...args: unknown[]) => void): Socket;
+    emit(event: string, ...args: unknown[]): Socket;
     connect(): Socket;
     disconnect(): Socket;
   }
@@ -23,7 +23,9 @@ declare module 'socket.io-client' {
   }
 
   export interface SocketOptions {
-    auth?: Record<string, any> | ((cb: (data: Record<string, any>) => void) => void);
+    auth?:
+      | Record<string, unknown>
+      | ((cb: (data: Record<string, unknown>) => void) => void);
   }
 
   export function io(uri: string, opts?: Partial<ManagerOptions & SocketOptions>): Socket;

@@ -74,7 +74,7 @@ export default function WorkspaceDashboardPage() {
             {projectHealth.length === 0 ? (
               <div className="px-5 py-8 text-center text-xs text-muted-foreground">No projects yet.</div>
             ) : (
-              projectHealth.map((project: any) => (
+              projectHealth.map((project) => (
                 <Link
                   key={project.id}
                   href={`/projects/${project.id}`}
@@ -115,7 +115,7 @@ export default function WorkspaceDashboardPage() {
             {activities.length === 0 ? (
               <div className="py-8 text-center text-xs text-muted-foreground">No recent activity.</div>
             ) : (
-              activities.map((activity: any) => (
+              activities.map((activity) => (
                 <div key={activity._id} className="flex items-start gap-2.5">
                   <div className="h-6 w-6 rounded-full bg-primary/10 flex items-center justify-center text-[9px] font-bold text-primary shrink-0 mt-0.5">
                     {activity.userId?.name?.charAt(0) || '?'}

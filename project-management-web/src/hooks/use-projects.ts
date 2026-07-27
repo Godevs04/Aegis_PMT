@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import projectService, { CreateProjectData, ProjectStatus } from '../services/project-service';
+import projectService, { CreateProjectData, Project, ProjectStatus } from '../services/project-service';
 
 export const PROJECTS_QUERY_KEY = 'projects';
 
@@ -62,9 +62,9 @@ export function useUpdateProjectMutation() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: ({ projectId, data }: { projectId: string; data: Partial<any> }) =>
+    mutationFn: ({ projectId, data }: { projectId: string; data: Partial<Project> }) =>
       projectService.updateProject(projectId, data),
-    onSuccess: (updated) => {
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [PROJECTS_QUERY_KEY] });
     },
   });

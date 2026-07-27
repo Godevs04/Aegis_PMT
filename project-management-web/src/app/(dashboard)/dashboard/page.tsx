@@ -114,10 +114,10 @@ export default function DashboardPage() {
                 No tasks assigned to you. Enjoy the break!
               </div>
             ) : (
-              tasks.slice(0, 8).map((task: any) => {
-                const status = task.statusId;
-                const priority = task.priorityId;
-                const project = task.projectId;
+              tasks.slice(0, 8).map((task) => {
+                const status = typeof task.statusId === 'object' ? task.statusId : undefined;
+                const priority = typeof task.priorityId === 'object' ? task.priorityId : undefined;
+                const project = typeof task.projectId === 'object' ? task.projectId : undefined;
                 const isOverdue = task.dueDate && !task.completedAt && new Date(task.dueDate) < new Date();
 
                 return (
@@ -170,7 +170,7 @@ export default function DashboardPage() {
                 No recent activity.
               </div>
             ) : (
-              activities.map((activity: any) => (
+              activities.map((activity) => (
                 <div key={activity._id} className="flex items-start gap-2.5">
                   <div className="h-6 w-6 rounded-full bg-primary/10 flex items-center justify-center text-[9px] font-bold text-primary shrink-0 mt-0.5">
                     {activity.userId?.name?.charAt(0) || <Activity className="h-3 w-3" />}

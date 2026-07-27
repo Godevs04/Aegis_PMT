@@ -7,8 +7,10 @@ import { Loader2, Upload, User, Globe, Check } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { apiClient } from '@/services/api-client';
 import { useAuthStore } from '@/store/auth-store';
+import { getApiErrorMessage } from '@/utils/api-error';
 
 interface ProfileFormValues {
   name: string;
@@ -96,9 +98,9 @@ export default function OnboardingProfilePage() {
 
       // Navigate to organization step
       router.push('/onboarding/organization');
-    } catch (err: any) {
+    } catch (err: unknown) {
       setError(
-        err.response?.data?.message || 'Failed to complete profile. Please try again.'
+        getApiErrorMessage(err, 'Failed to complete profile. Please try again.')
       );
     } finally {
       setIsSubmitting(false);
@@ -170,11 +172,12 @@ export default function OnboardingProfilePage() {
                 className="relative group h-20 w-20 rounded-full bg-secondary border-2 border-dashed border-border hover:border-primary/50 transition-colors flex items-center justify-center overflow-hidden"
               >
                 {avatarPreview ? (
-                  <img
-                    src={avatarPreview}
-                    alt="Avatar preview"
-                    className="h-full w-full object-cover rounded-full"
-                  />
+                  <Avatar className="h-full w-full rounded-full">
+                    <AvatarImage src={avatarPreview} alt="Avatar preview" className="object-cover" />
+                    <AvatarFallback className="bg-secondary">
+                      <Upload className="h-6 w-6 text-muted-foreground" />
+                    </AvatarFallback>
+                  </Avatar>
                 ) : (
                   <Upload className="h-6 w-6 text-muted-foreground group-hover:text-primary transition-colors" />
                 )}

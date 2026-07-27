@@ -46,6 +46,11 @@ const SEARCH_ICON_MAP: Record<string, React.ElementType> = {
 };
 
 export function CommandPalette({ isOpen, onClose }: CommandPaletteProps) {
+  if (!isOpen) return null;
+  return <CommandPalettePanel key="open" onClose={onClose} />;
+}
+
+function CommandPalettePanel({ onClose }: { onClose: () => void }) {
   const router = useRouter();
   const { currentWorkspaceId } = useWorkspaceStore();
   const [query, setQuery] = useState('');
@@ -54,16 +59,15 @@ export function CommandPalette({ isOpen, onClose }: CommandPaletteProps) {
   const [isSearching, setIsSearching] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
-  const searchTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const navigate = useCallback((path: string) => {
     onClose();
     router.push(path);
   }, [onClose, router]);
 
-  // Static commands
   const staticCommands: CommandItem[] = [
-    { id: 'nav-dashboard', label: 'Dashboard', icon: LayoutDashboard, category: 'navigation', action: () => navigate('/') },
+    { id: 'nav-dashboard', label: 'Dashboard', icon: LayoutDashboard, category: 'navigation', action: () => navigate('/dashboard') },
     { id: 'nav-projects', label: 'Projects', icon: FolderKanban, category: 'navigation', action: () => navigate('/projects') },
     { id: 'nav-tasks', label: 'Tasks', icon: CheckSquare, category: 'navigation', action: () => navigate('/tasks') },
     { id: 'nav-teams', label: 'Teams', icon: Users, category: 'navigation', action: () => navigate('/teams') },
@@ -75,23 +79,25 @@ export function CommandPalette({ isOpen, onClose }: CommandPaletteProps) {
     { id: 'act-create-task', label: 'Create Task', description: 'Add a new task', icon: Plus, category: 'action', action: () => navigate('/tasks?create=true') },
   ];
 
-  // Convert search results to CommandItems
-  const searchCommandItems: CommandItem[] = searchResults.map((result) => ({
-    id: `search-${result.type}-${result.id}`,
-    label: result.title,
-    description: result.subtitle,
-    icon: SEARCH_ICON_MAP[result.type] || FileText,
-    category: 'search' as const,
-    action: () => {
-      if (result.type === 'task') navigate(`/projects/${result.meta?.projectId}`);
-      else if (result.type === 'project') navigate(`/projects/${result.id}`);
-      else if (result.type === 'member') onClose();
-      else if (result.type === 'comment') navigate(`/projects/${result.meta?.projectId}`);
-      else onClose();
-    },
-  }));
+  const canSearch = query.trim().length >= 2 && !!currentWorkspaceId;
 
-  // Filter static commands when no API results
+  const searchCommandItems: CommandItem[] = canSearch
+    ? searchResults.map((result) => ({
+        id: `search-${result.type}-${result.id}`,
+        label: result.title,
+        description: result.subtitle,
+        icon: SEARCH_ICON_MAP[result.type] || FileText,
+        category: 'search' as const,
+        action: () => {
+          if (result.type === 'task') navigate(`/projects/${result.meta?.projectId}`);
+          else if (result.type === 'project') navigate(`/projects/${result.id}`);
+          else if (result.type === 'member') onClose();
+          else if (result.type === 'comment') navigate(`/projects/${result.meta?.projectId}`);
+          else onClose();
+        },
+      }))
+    : [];
+
   const filteredStatic = query.trim()
     ? staticCommands.filter((cmd) =>
         cmd.label.toLowerCase().includes(query.toLowerCase()) ||
@@ -99,23 +105,19 @@ export function CommandPalette({ isOpen, onClose }: CommandPaletteProps) {
       )
     : staticCommands;
 
-  // Combined list: search results first, then filtered static commands
-  const flatList = query.trim().length >= 2 && searchCommandItems.length > 0
+  const flatList = canSearch && searchCommandItems.length > 0
     ? [...searchCommandItems, ...filteredStatic.slice(0, 3)]
     : filteredStatic;
 
-  // Debounced search
+  const safeIndex = flatList.length === 0 ? 0 : Math.min(selectedIndex, flatList.length - 1);
+
+  // Debounced API search — setState only inside async timeout (no sync cascade)
   useEffect(() => {
     if (searchTimerRef.current) clearTimeout(searchTimerRef.current);
+    if (!canSearch || !currentWorkspaceId) return;
 
-    if (!query.trim() || query.trim().length < 2 || !currentWorkspaceId) {
-      setSearchResults([]);
-      setIsSearching(false);
-      return;
-    }
-
-    setIsSearching(true);
     searchTimerRef.current = setTimeout(async () => {
+      setIsSearching(true);
       try {
         const response = await searchService.search(query.trim(), currentWorkspaceId, { limit: 10 });
         setSearchResults(response.results);
@@ -129,17 +131,13 @@ export function CommandPalette({ isOpen, onClose }: CommandPaletteProps) {
     return () => {
       if (searchTimerRef.current) clearTimeout(searchTimerRef.current);
     };
-  }, [query, currentWorkspaceId]);
+  }, [query, currentWorkspaceId, canSearch]);
 
-  // Reset state when opened
+  // Focus input after mount
   useEffect(() => {
-    if (isOpen) {
-      setQuery('');
-      setSelectedIndex(0);
-      setSearchResults([]);
-      setTimeout(() => inputRef.current?.focus(), 50);
-    }
-  }, [isOpen]);
+    const t = setTimeout(() => inputRef.current?.focus(), 50);
+    return () => clearTimeout(t);
+  }, []);
 
   // Scroll selected into view
   useEffect(() => {
@@ -147,25 +145,32 @@ export function CommandPalette({ isOpen, onClose }: CommandPaletteProps) {
       const selected = listRef.current.querySelector('[data-selected="true"]');
       selected?.scrollIntoView({ block: 'nearest' });
     }
-  }, [selectedIndex]);
+  }, [safeIndex]);
 
-  // Reset selected index on results change
-  useEffect(() => { setSelectedIndex(0); }, [query, searchResults.length]);
+  const handleQueryChange = (value: string) => {
+    setQuery(value);
+    setSelectedIndex(0);
+    if (value.trim().length < 2) {
+      setSearchResults([]);
+      setIsSearching(false);
+    }
+  };
 
-  // Keyboard navigation
   const handleKeyDown = (e: React.KeyboardEvent) => {
     switch (e.key) {
       case 'ArrowDown':
         e.preventDefault();
+        if (flatList.length === 0) return;
         setSelectedIndex((prev) => (prev + 1) % flatList.length);
         break;
       case 'ArrowUp':
         e.preventDefault();
+        if (flatList.length === 0) return;
         setSelectedIndex((prev) => (prev - 1 + flatList.length) % flatList.length);
         break;
       case 'Enter':
         e.preventDefault();
-        if (flatList[selectedIndex]) flatList[selectedIndex].action();
+        if (flatList[safeIndex]) flatList[safeIndex].action();
         break;
       case 'Escape':
         e.preventDefault();
@@ -173,8 +178,6 @@ export function CommandPalette({ isOpen, onClose }: CommandPaletteProps) {
         break;
     }
   };
-
-  if (!isOpen) return null;
 
   return (
     <>
@@ -185,14 +188,13 @@ export function CommandPalette({ isOpen, onClose }: CommandPaletteProps) {
           onClick={(e) => e.stopPropagation()}
           onKeyDown={handleKeyDown}
         >
-          {/* Search Input */}
           <div className="flex items-center px-4 border-b border-border">
             <Search className="h-4 w-4 text-muted-foreground shrink-0" />
             <input
               ref={inputRef}
               type="text"
               value={query}
-              onChange={(e) => setQuery(e.target.value)}
+              onChange={(e) => handleQueryChange(e.target.value)}
               placeholder="Search or type a command..."
               className="flex-1 h-12 px-3 bg-transparent text-sm text-foreground placeholder:text-muted-foreground focus:outline-none"
             />
@@ -204,7 +206,6 @@ export function CommandPalette({ isOpen, onClose }: CommandPaletteProps) {
             )}
           </div>
 
-          {/* Results */}
           <div ref={listRef} className="max-h-[320px] overflow-y-auto py-2">
             {flatList.length === 0 ? (
               <div className="px-4 py-8 text-center">
@@ -213,30 +214,28 @@ export function CommandPalette({ isOpen, onClose }: CommandPaletteProps) {
               </div>
             ) : (
               <>
-                {/* Search Results */}
-                {searchCommandItems.length > 0 && query.trim().length >= 2 && (
+                {searchCommandItems.length > 0 && canSearch && (
                   <div>
                     <p className="px-4 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60">
                       Search Results
                     </p>
                     {searchCommandItems.map((cmd) => {
                       const idx = flatList.indexOf(cmd);
-                      return <CommandRow key={cmd.id} item={cmd} isSelected={idx === selectedIndex} onSelect={cmd.action} />;
+                      return <CommandRow key={cmd.id} item={cmd} isSelected={idx === safeIndex} onSelect={cmd.action} />;
                     })}
                   </div>
                 )}
 
-                {/* Static Commands */}
                 {filteredStatic.length > 0 && (
                   <div>
-                    {searchCommandItems.length > 0 && query.trim().length >= 2 && (
+                    {searchCommandItems.length > 0 && canSearch && (
                       <p className="px-4 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60">
                         Commands
                       </p>
                     )}
-                    {(query.trim().length >= 2 && searchCommandItems.length > 0 ? filteredStatic.slice(0, 3) : filteredStatic).map((cmd) => {
+                    {(canSearch && searchCommandItems.length > 0 ? filteredStatic.slice(0, 3) : filteredStatic).map((cmd) => {
                       const idx = flatList.indexOf(cmd);
-                      return <CommandRow key={cmd.id} item={cmd} isSelected={idx === selectedIndex} onSelect={cmd.action} />;
+                      return <CommandRow key={cmd.id} item={cmd} isSelected={idx === safeIndex} onSelect={cmd.action} />;
                     })}
                   </div>
                 )}
@@ -244,7 +243,6 @@ export function CommandPalette({ isOpen, onClose }: CommandPaletteProps) {
             )}
           </div>
 
-          {/* Footer */}
           <div className="flex items-center justify-between px-4 py-2 border-t border-border text-[10px] text-muted-foreground/60">
             <div className="flex items-center gap-3">
               <span className="flex items-center gap-1">

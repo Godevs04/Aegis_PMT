@@ -5,6 +5,9 @@ import sendResponse from '../../shared/utils/response';
 import { uploadToCloudinary } from '../../services/upload.service';
 import User from './user.model';
 import { OrganizationMember } from '../members/organization-member.model';
+import { Organization } from '../organizations/organization.model';
+import { Role } from '../roles/role.model';
+import { SystemRole } from '../../config/permissions';
 
 const userRepository = new UserRepository();
 
@@ -52,10 +55,12 @@ export class UserController {
         throw new AppError('Authentication credentials not found', 401);
       }
 
-      const { name } = req.body;
-      if (name) {
-        user.name = name;
-      }
+      const { name, bio, timezone, language, theme } = req.body;
+      if (name) user.name = name;
+      if (bio !== undefined) user.bio = bio;
+      if (timezone !== undefined) user.timezone = timezone;
+      if (language !== undefined) user.language = language;
+      if (theme !== undefined) user.theme = theme;
 
       // Handle file upload if present in buffer
       if (req.file) {
@@ -77,6 +82,10 @@ export class UserController {
           email: user.email,
           role: user.role,
           avatarUrl: user.avatarUrl,
+          bio: user.bio,
+          timezone: user.timezone,
+          language: user.language,
+          theme: user.theme,
         },
       });
     } catch (error) {
@@ -184,13 +193,42 @@ export class UserController {
     try {
       if (!req.user) throw new AppError('Authentication required.', 401);
 
-      // Check if user has any organization memberships
-      const orgMemberships = await OrganizationMember.find({
+      // Check memberships
+      let membershipCount = await OrganizationMember.countDocuments({
         userId: req.user.id,
         status: 'active',
-      }).select('organizationId');
+      });
 
-      const hasOrganization = orgMemberships.length > 0;
+      // Repair: user owns an org but has no membership (legacy gap)
+      if (membershipCount === 0) {
+        const ownedOrg = await Organization.findOne({ ownerId: req.user.id });
+        if (ownedOrg) {
+          const ownerRole = await Role.findOne({ slug: SystemRole.ORG_OWNER, isSystem: true });
+          if (ownerRole) {
+            await OrganizationMember.create({
+              userId: req.user.id,
+              organizationId: ownedOrg.id,
+              roleId: ownerRole.id,
+              status: 'active',
+              joinedAt: new Date(),
+              createdBy: req.user.id,
+            });
+            membershipCount = await OrganizationMember.countDocuments({
+              userId: req.user.id,
+              status: 'active',
+            });
+          }
+        }
+      }
+
+      const hasOrganization = membershipCount > 0;
+
+      // Keep user flag in sync once they have an org
+      if (hasOrganization && !req.user.isOnboardingComplete) {
+        req.user.isOnboardingComplete = true;
+        req.user.onboardingStep = 2;
+        await req.user.save();
+      }
 
       sendResponse({
         res,

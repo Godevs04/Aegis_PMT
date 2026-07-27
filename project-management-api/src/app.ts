@@ -28,6 +28,7 @@ import milestoneRoutes from './modules/milestones/milestone.routes';
 import searchRoutes from './modules/search/search.routes';
 import dashboardRoutes from './modules/dashboard/dashboard.routes';
 import adminRoutes from './modules/admin/admin.routes';
+import labelRoutes from './modules/labels/label.routes';
 
 const app: Application = express();
 
@@ -101,6 +102,7 @@ app.use('/api/milestones', milestoneRoutes);
 app.use('/api/search', searchRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api/labels', labelRoutes);
 
 // Health Check
 app.get('/health', (_req: Request, res: Response) => {
